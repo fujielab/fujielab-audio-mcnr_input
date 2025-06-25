@@ -139,14 +139,93 @@ class OutputCaptureWin(OutputCapture):
         RuntimeError
             If no suitable loopback device is found
         """
-        for idx, dev in enumerate(sd.query_devices()):
-            if (
-                "loopback" in dev["name"].lower()
-                and dev["max_input_channels"] >= channels
-                and sd.query_hostapis()[dev["hostapi"]]["name"] == "Windows WASAPI"
-            ):
+        devices = sd.query_devices()
+        host_apis = sd.query_hostapis()
+        wasapi_devices = []
+        all_suitable_devices = []
+        
+        print("=== Available Audio Devices ===")
+        for idx, dev in enumerate(devices):
+            host_api_name = host_apis[dev["hostapi"]]["name"]
+            print(f"Device {idx}: {dev['name']} (Host API: {host_api_name}, "
+                  f"Input channels: {dev['max_input_channels']}, "
+                  f"Output channels: {dev['max_output_channels']})")
+            
+            # WASAPI デバイスで入力チャンネルがある場合
+            if (host_api_name == "Windows WASAPI" and 
+                dev["max_input_channels"] >= channels):
+                wasapi_devices.append((idx, dev))
+                
+            # 全ての適切なデバイス（入力チャンネルがある）
+            if dev["max_input_channels"] >= channels:
+                all_suitable_devices.append((idx, dev))
+        
+        print(f"\n=== Searching for loopback device (channels >= {channels}) ===")
+        
+        # 1. 明示的に "loopback" を含むWASAPIデバイスを探す
+        for idx, dev in wasapi_devices:
+            if "loopback" in dev["name"].lower():
+                print(f"Found explicit loopback device: {dev['name']} (ID: {idx})")
                 return idx
-        raise RuntimeError("No suitable WASAPI loopback device found.")
+        
+        # 2. WASAPIデバイスで特定のキーワードを含むものを探す
+        loopback_keywords = ["loopback", "stereo mix", "what u hear", "再生リダイレクト", 
+                           "ステレオ ミキサー", "スピーカー", "speaker", "playback"]
+        
+        for idx, dev in wasapi_devices:
+            dev_name_lower = dev["name"].lower()
+            for keyword in loopback_keywords:
+                if keyword in dev_name_lower:
+                    print(f"Found potential loopback device with keyword '{keyword}': {dev['name']} (ID: {idx})")
+                    return idx
+        
+        # 3. WASAPIデバイスでデフォルトの出力デバイスに関連するものを探す
+        try:
+            default_device = sd.default.device
+            if isinstance(default_device, (list, tuple)) and len(default_device) >= 2:
+                default_output_idx = default_device[1]  # 出力デバイスのインデックス
+            else:
+                default_output_idx = sd.default.device[1] if hasattr(sd.default.device, '__getitem__') else None
+            
+            if default_output_idx is not None:
+                default_output_dev = devices[default_output_idx]
+                print(f"Default output device: {default_output_dev['name']} (ID: {default_output_idx})")
+                
+                # デフォルト出力デバイスと同じ名前のWASAPI入力デバイスを探す
+                for idx, dev in wasapi_devices:
+                    if (dev["name"] == default_output_dev["name"] or 
+                        default_output_dev["name"] in dev["name"] or
+                        dev["name"] in default_output_dev["name"]):
+                        print(f"Found WASAPI device matching default output: {dev['name']} (ID: {idx})")
+                        return idx
+        except Exception as e:
+            print(f"Could not determine default device: {e}")
+        
+        # 4. 最初のWASAPIデバイス（入力チャンネルがある）を使用
+        if wasapi_devices:
+            idx, dev = wasapi_devices[0]
+            print(f"Using first available WASAPI device: {dev['name']} (ID: {idx})")
+            return idx
+        
+        # 5. 他のホストAPIのデバイスも試す
+        if all_suitable_devices:
+            print("No WASAPI devices found, trying other host APIs...")
+            for idx, dev in all_suitable_devices:
+                host_api_name = host_apis[dev["hostapi"]]["name"]
+                print(f"Trying device: {dev['name']} (Host API: {host_api_name}, ID: {idx})")
+                return idx
+        
+        # すべて失敗した場合
+        print("No suitable audio input devices found.")
+        print("Available devices summary:")
+        for idx, dev in enumerate(devices):
+            host_api_name = host_apis[dev["hostapi"]]["name"]
+            print(f"  {idx}: {dev['name']} ({host_api_name}) - "
+                  f"In: {dev['max_input_channels']}, Out: {dev['max_output_channels']}")
+        
+        raise RuntimeError("No suitable audio input device found. "
+                         "Please ensure your audio drivers support loopback recording or "
+                         "enable 'Stereo Mix' in your sound settings.")
 
     def start_audio_capture(self, device_name=None, sample_rate=None, channels=None, blocksize=None):
         """
@@ -181,8 +260,11 @@ class OutputCaptureWin(OutputCapture):
 
         try:
             # Get the index of the loopback device
+            print(f"Searching for audio input device (channels >= {self._channels})...")
             device_idx = self._find_loopback_device(self._channels)
-            self._debug_print(f"Detected suitable WASAPI loopback device (Device ID: {device_idx})")
+            selected_device = sd.query_devices()[device_idx]
+            print(f"Selected device: {selected_device['name']} (ID: {device_idx})")
+            self._debug_print(f"Detected suitable audio input device (Device ID: {device_idx})")
 
             # For safety, recreate the stream
             if self._capture_stream is not None:
@@ -202,19 +284,51 @@ class OutputCaptureWin(OutputCapture):
             self._callback_error = None
 
             # Debug output of stream settings
-            print(f"Stream settings: Sample rate={self._sample_rate}, Channels={self._channels}, Block size={self._blocksize}")
+            print(f"\nCreating audio stream with settings:")
+            print(f"  - Device: {selected_device['name']} (ID: {device_idx})")
+            print(f"  - Sample rate: {self._sample_rate} Hz")
+            print(f"  - Channels: {self._channels}")
+            print(f"  - Block size: {self._blocksize}")
+            print(f"  - Host API: {sd.query_hostapis()[selected_device['hostapi']]['name']}")
 
-            # Open a stream to capture from the loopback device
-            self._capture_stream = sd.InputStream(
-                device=device_idx,
-                samplerate=self._sample_rate,
-                channels=self._channels,
-                blocksize=self._blocksize,
-                dtype="float32",
-                callback=self._audio_callback,
-            )
-            self._capture_stream.start()
-            print(f"Started recording from WASAPI loopback")
+            # Open a stream to capture from the selected device
+            try:
+                self._capture_stream = sd.InputStream(
+                    device=device_idx,
+                    samplerate=self._sample_rate,
+                    channels=self._channels,
+                    blocksize=self._blocksize,
+                    dtype="float32",
+                    callback=self._audio_callback,
+                )
+                print("Audio stream created successfully")
+                
+                self._capture_stream.start()
+                print(f"Started recording from audio device: {selected_device['name']}")
+                
+            except Exception as stream_error:
+                print(f"Failed to create or start audio stream: {stream_error}")
+                
+                # チャンネル数を減らして再試行
+                if self._channels > 1:
+                    print(f"Retrying with mono (1 channel) instead of {self._channels} channels...")
+                    try:
+                        self._channels = 1
+                        self._capture_stream = sd.InputStream(
+                            device=device_idx,
+                            samplerate=self._sample_rate,
+                            channels=self._channels,
+                            blocksize=self._blocksize,
+                            dtype="float32",
+                            callback=self._audio_callback,
+                        )
+                        self._capture_stream.start()
+                        print(f"Successfully started recording in mono mode")
+                    except Exception as mono_error:
+                        print(f"Mono retry also failed: {mono_error}")
+                        raise stream_error
+                else:
+                    raise stream_error
 
             # Wait for the stream to stabilize
             time.sleep(0.5)
@@ -229,7 +343,14 @@ class OutputCaptureWin(OutputCapture):
             return True
 
         except Exception as e:
+            print(f"\n=== Audio Capture Error ===")
             print(f"Failed to start audio capture: {e}")
+            print(f"\nTroubleshooting tips:")
+            print(f"1. Check if 'Stereo Mix' is enabled in Windows Sound settings")
+            print(f"2. Update your audio drivers")
+            print(f"3. Try running the program as administrator")
+            print(f"4. Ensure some audio is playing on your system")
+            
             import traceback
             traceback.print_exc()
             return False

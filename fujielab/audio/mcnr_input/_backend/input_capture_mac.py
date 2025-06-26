@@ -7,6 +7,7 @@ Mac用入力オーディオキャプチャモジュール
 
 このモジュールは、soundcardを使用してMac上で各種オーディオ入力（マイク等）からのオーディオをキャプチャするためのクラスを提供します。
 """
+
 from .input_capture_soundcard_base import SoundcardInputCaptureBase
 
 
@@ -88,7 +89,9 @@ def create_input_capture_instance(sample_rate=16000, channels=1, blocksize=1024)
     InputCaptureMac
         Mac用入力キャプチャインスタンス
     """
-    return InputCaptureMac(sample_rate=sample_rate, channels=channels, blocksize=blocksize)
+    return InputCaptureMac(
+        sample_rate=sample_rate, channels=channels, blocksize=blocksize
+    )
 
 
 def list_devices():

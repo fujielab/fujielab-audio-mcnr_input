@@ -7,6 +7,7 @@ This module provides the abstract base class for capturing audio from various in
 
 このモジュールは、各種オーディオ入力からのキャプチャのための抽象基底クラスを提供します。
 """
+
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 import queue
@@ -24,7 +25,13 @@ class InputCaptureBase(ABC):
     この抽象クラスは、すべてのオーディオ入力キャプチャ実装の共通インターフェースを定義します。
     """
 
-    def __init__(self, sample_rate: int = 16000, channels: int = 1, blocksize: int = 1024, debug: bool = False):
+    def __init__(
+        self,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        blocksize: int = 1024,
+        debug: bool = False,
+    ):
         """
         Initialize audio input capture
 
@@ -142,10 +149,13 @@ class InputCaptureBase(ABC):
         pass
 
     @abstractmethod
-    def start_audio_capture(self, device_name: Optional[Union[str, int]] = None, 
-                          sample_rate: Optional[int] = None, 
-                          channels: Optional[int] = None, 
-                          blocksize: Optional[int] = None) -> bool:
+    def start_audio_capture(
+        self,
+        device_name: Optional[Union[str, int]] = None,
+        sample_rate: Optional[int] = None,
+        channels: Optional[int] = None,
+        blocksize: Optional[int] = None,
+    ) -> bool:
         """
         Start audio capture
         オーディオキャプチャを開始

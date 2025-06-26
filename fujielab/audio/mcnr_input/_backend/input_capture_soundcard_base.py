@@ -3,6 +3,7 @@ Common input capture implementation using soundcard
 
 soundcardを使用した共通の入力キャプチャ実装
 """
+
 import numpy as np
 import queue
 import threading
@@ -12,6 +13,7 @@ from .input_capture_base import InputCaptureBase
 
 try:
     import soundcard as sc
+
     SOUNDCARD_AVAILABLE = True
 except ImportError:
     SOUNDCARD_AVAILABLE = False
@@ -21,11 +23,18 @@ except ImportError:
 class SoundcardInputCaptureBase(InputCaptureBase):
     """
     Base class for soundcard-based input capture
-    
+
     soundcardベースの入力キャプチャの基底クラス
     """
 
-    def __init__(self, sample_rate=16000, channels=1, blocksize=1024, debug=False, platform_name=""):
+    def __init__(
+        self,
+        sample_rate=16000,
+        channels=1,
+        blocksize=1024,
+        debug=False,
+        platform_name="",
+    ):
         """
         Initialize soundcard-based input capture
 
@@ -50,8 +59,10 @@ class SoundcardInputCaptureBase(InputCaptureBase):
             デバッグメッセージ用のプラットフォーム名
         """
         if not SOUNDCARD_AVAILABLE:
-            raise RuntimeError(f"soundcard library is not available. Please install soundcard for {platform_name} input capture.")
-            
+            raise RuntimeError(
+                f"soundcard library is not available. Please install soundcard for {platform_name} input capture."
+            )
+
         # Call parent constructor
         super().__init__(sample_rate, channels, blocksize, debug)
 
@@ -61,7 +72,9 @@ class SoundcardInputCaptureBase(InputCaptureBase):
         self._microphone_device = None
         self._platform_name = platform_name
 
-        self._debug_print(f"{platform_name} InputCapture initialized with soundcard backend")
+        self._debug_print(
+            f"{platform_name} InputCapture initialized with soundcard backend"
+        )
 
     @property
     def time(self):
@@ -75,20 +88,24 @@ class SoundcardInputCaptureBase(InputCaptureBase):
         soundcardを使用した連続オーディオ録音のワーカースレッド
         """
         import platform
-        
+
         # Initialize COM for Windows platform
         com_initialized = False
         if platform.system() == "Windows":
             try:
                 import pythoncom
+
                 pythoncom.CoInitialize()
                 com_initialized = True
                 self._debug_print("COM initialized for recording thread")
             except ImportError:
-                self._debug_print("Warning: pythoncom not available, COM initialization skipped")
+                self._debug_print(
+                    "Warning: pythoncom not available, COM initialization skipped"
+                )
                 # Try alternative COM initialization
                 try:
-                    import comtypes # type: ignore
+                    import comtypes  # type: ignore
+
                     comtypes.CoInitialize()
                     com_initialized = True
                     self._debug_print("COM initialized using comtypes")
@@ -96,15 +113,18 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                     self._debug_print("Warning: comtypes also not available")
             except Exception as e:
                 self._debug_print(f"Warning: COM initialization failed: {e}")
-        
+
         try:
-            self._debug_print(f"Starting recording with device: {self._microphone_device.name}")
-            self._debug_print(f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}")
+            self._debug_print(
+                f"Starting recording with device: {self._microphone_device.name}"
+            )
+            self._debug_print(
+                f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}"
+            )
 
             # Open the recorder once and keep it open
             with self._microphone_device.recorder(
-                samplerate=self._sample_rate,
-                channels=self._channels
+                samplerate=self._sample_rate, channels=self._channels
             ) as recorder:
 
                 while not self._stop_recording.is_set():
@@ -119,7 +139,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                                 data = data.reshape(-1, 1)
                             elif data.shape[1] > self._channels:
                                 # If more channels than needed, take the first N channels
-                                data = data[:, :self._channels]
+                                data = data[:, : self._channels]
                             elif data.shape[1] < self._channels and self._channels == 2:
                                 # If mono but stereo requested, duplicate channel
                                 data = np.column_stack([data, data])
@@ -128,7 +148,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                             audio_data = AudioData(
                                 data=data.astype(np.float32),
                                 time=time.time(),
-                                overflowed=False
+                                overflowed=False,
                             )
 
                             # Add to queue (discard old data if queue is full)
@@ -153,11 +173,13 @@ class SoundcardInputCaptureBase(InputCaptureBase):
             if platform.system() == "Windows" and com_initialized:
                 try:
                     import pythoncom
+
                     pythoncom.CoUninitialize()
                     self._debug_print("COM uninitialized for recording thread")
                 except ImportError:
                     try:
-                        import comtypes # type: ignore
+                        import comtypes  # type: ignore
+
                         comtypes.CoUninitialize()
                         self._debug_print("COM uninitialized using comtypes")
                     except ImportError:
@@ -169,9 +191,10 @@ class SoundcardInputCaptureBase(InputCaptureBase):
     def list_audio_devices_common(debug=False):
         """
         Common implementation for listing audio devices
-        
+
         音声デバイス一覧表示の共通実装
         """
+
         def _debug_print_local(message):
             if debug:
                 print(message)
@@ -180,7 +203,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
             if not SOUNDCARD_AVAILABLE:
                 _debug_print_local("soundcard library is not available")
                 return False
-                
+
             # soundcard based listing
             _debug_print_local("\nAvailable audio input devices (soundcard):")
             microphones = sc.all_microphones()
@@ -200,7 +223,9 @@ class SoundcardInputCaptureBase(InputCaptureBase):
             _debug_print_local(f"Failed to list devices: {e}")
             return False
 
-    def start_audio_capture(self, device_name=None, sample_rate=None, channels=None, blocksize=None):
+    def start_audio_capture(
+        self, device_name=None, sample_rate=None, channels=None, blocksize=None
+    ):
         """
         Start audio capture (common implementation)
 
@@ -248,7 +273,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
     def _start_soundcard_capture(self, device_name):
         """
         Start audio capture using soundcard (common implementation)
-        
+
         soundcardを使用してオーディオキャプチャを開始（共通実装）
         """
         try:
@@ -300,14 +325,16 @@ class SoundcardInputCaptureBase(InputCaptureBase):
 
             # 新しい録音スレッドを開始
             self._stop_recording.clear()
-            self._recording_thread = threading.Thread(target=self._recording_worker, daemon=True)
+            self._recording_thread = threading.Thread(
+                target=self._recording_worker, daemon=True
+            )
             self._recording_thread.start()
-            
+
             self._debug_print("Microphone input thread started successfully")
 
             # テストデータ取得を試行
             time.sleep(0.3)  # 初期化待機
-            
+
             if self._audio_queue.empty():
                 self._debug_print("Warning: No data received from the microphone yet")
                 self._stream_initialized = True  # とりあえず初期化は成功とみなす
@@ -351,7 +378,9 @@ class SoundcardInputCaptureBase(InputCaptureBase):
             # 例外をカウントして頻発する場合のみ警告
             self._error_count += 1
             if self._error_count % 100 == 0:
-                self._debug_print(f"Error retrieving microphone input data: {e} (last 100 attempts)")
+                self._debug_print(
+                    f"Error retrieving microphone input data: {e} (last 100 attempts)"
+                )
                 self._error_count = 0
 
             return None
@@ -373,7 +402,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
     def _stop_soundcard_capture(self):
         """
         Stop soundcard capture (common implementation)
-        
+
         soundcardキャプチャを停止（共通実装）
         """
         try:
@@ -383,7 +412,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                 self._recording_thread.join(timeout=2.0)
                 self._recording_thread = None
                 self._debug_print("Recording thread stopped")
-            
+
             self._stream_initialized = False
             return True
         except Exception as e:

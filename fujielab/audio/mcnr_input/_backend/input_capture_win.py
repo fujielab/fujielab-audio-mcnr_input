@@ -7,6 +7,7 @@ Windows用入力オーディオキャプチャモジュール
 
 このモジュールは、soundcardを使用してWindows上で各種オーディオ入力（マイク等）からのオーディオをキャプチャするためのクラスを提供します。
 """
+
 from .input_capture_soundcard_base import SoundcardInputCaptureBase
 
 
@@ -42,7 +43,9 @@ class InputCaptureWin(SoundcardInputCaptureBase):
             Enable debug messages (default: False)
             デバッグメッセージを有効にする (デフォルト: False)
         """
-        super().__init__(sample_rate, channels, blocksize, debug, platform_name="Windows")
+        super().__init__(
+            sample_rate, channels, blocksize, debug, platform_name="Windows"
+        )
 
     @staticmethod
     def list_audio_devices(debug=False):
@@ -88,7 +91,9 @@ def create_input_capture_instance(sample_rate=16000, channels=1, blocksize=1024)
     InputCaptureWin
         Windows用入力キャプチャインスタンス
     """
-    return InputCaptureWin(sample_rate=sample_rate, channels=channels, blocksize=blocksize)
+    return InputCaptureWin(
+        sample_rate=sample_rate, channels=channels, blocksize=blocksize
+    )
 
 
 def list_devices():

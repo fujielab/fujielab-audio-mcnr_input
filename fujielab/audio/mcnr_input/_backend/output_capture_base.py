@@ -1,5 +1,6 @@
 import abc
 
+
 class OutputCapture(abc.ABC):
     """
     Output audio capture abstract base class
@@ -52,7 +53,9 @@ class OutputCapture(abc.ABC):
         return self._blocksize
 
     @abc.abstractmethod
-    def start_audio_capture(self, device_name=None, sample_rate=None, channels=None, blocksize=None):
+    def start_audio_capture(
+        self, device_name=None, sample_rate=None, channels=None, blocksize=None
+    ):
         """
         Start audio capture
 

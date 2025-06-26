@@ -1,6 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
 
+
 @dataclass
 class AudioData:
     """
@@ -11,7 +12,7 @@ class AudioData:
         time (float): The timestamp when the data was captured.
         overflowed (bool): Flag indicating if the data capture overflowed.
     """
+
     data: np.ndarray
     time: float
     overflowed: bool = False
-

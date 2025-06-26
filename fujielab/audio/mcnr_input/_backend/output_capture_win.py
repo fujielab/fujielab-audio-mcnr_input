@@ -2,6 +2,7 @@
 Output audio capture module for Windows - soundcard library version
 Implementation using soundcard loopback capture
 """
+
 import soundcard as sc
 import numpy as np
 import threading
@@ -69,22 +70,36 @@ class OutputCaptureWin(OutputCapture):
 
             self._debug_print("Available microphones and loopback devices:")
             for i, mic in enumerate(all_mics):
-                mic_type = "Loopback" if getattr(mic, 'isloopback', False) else "Microphone"
+                mic_type = (
+                    "Loopback" if getattr(mic, "isloopback", False) else "Microphone"
+                )
                 self._debug_print(f"  {i}: {mic.name} ({mic_type})")
 
             # Filter loopback devices only
-            loopback_devices = [mic for mic in all_mics if getattr(mic, 'isloopback', False)]
+            loopback_devices = [
+                mic for mic in all_mics if getattr(mic, "isloopback", False)
+            ]
 
             if not loopback_devices:
                 # If no explicit loopback devices found, look for devices with loopback keywords
-                self._debug_print("No explicit loopback devices found, searching by name patterns...")
-                loopback_keywords = ["loopback", "stereo mix", "ステレオ ミキサー", "what u hear", "mix"]
+                self._debug_print(
+                    "No explicit loopback devices found, searching by name patterns..."
+                )
+                loopback_keywords = [
+                    "loopback",
+                    "stereo mix",
+                    "ステレオ ミキサー",
+                    "what u hear",
+                    "mix",
+                ]
 
                 for mic in all_mics:
                     mic_name_lower = mic.name.lower()
                     if any(keyword in mic_name_lower for keyword in loopback_keywords):
                         loopback_devices.append(mic)
-                        self._debug_print(f"Found potential loopback device by name: {mic.name}")
+                        self._debug_print(
+                            f"Found potential loopback device by name: {mic.name}"
+                        )
 
             if not loopback_devices:
                 raise RuntimeError(
@@ -109,7 +124,10 @@ class OutputCaptureWin(OutputCapture):
                 if default_speaker_name == loopback_name:
                     score = 100
                 # Partial match in either direction
-                elif default_speaker_name in loopback_name or loopback_name in default_speaker_name:
+                elif (
+                    default_speaker_name in loopback_name
+                    or loopback_name in default_speaker_name
+                ):
                     score = 80
                 # Common words match
                 else:
@@ -119,7 +137,10 @@ class OutputCaptureWin(OutputCapture):
                     score = len(common_words) * 20
 
                 # Prefer devices with "mix" or "loopback" in the name
-                if any(keyword in loopback_name for keyword in ["mix", "loopback", "ミキサー"]):
+                if any(
+                    keyword in loopback_name
+                    for keyword in ["mix", "loopback", "ミキサー"]
+                ):
                     score += 10
 
                 self._debug_print(f"Device: {loopback_device.name}, Score: {score}")
@@ -131,9 +152,13 @@ class OutputCaptureWin(OutputCapture):
             if best_match is None:
                 # If no good match found, use the first loopback device
                 best_match = loopback_devices[0]
-                self._debug_print(f"No good match found, using first loopback device: {best_match.name}")
+                self._debug_print(
+                    f"No good match found, using first loopback device: {best_match.name}"
+                )
             else:
-                self._debug_print(f"Best matching loopback device: {best_match.name} (score: {best_score})")
+                self._debug_print(
+                    f"Best matching loopback device: {best_match.name} (score: {best_score})"
+                )
 
             return best_match
 
@@ -147,15 +172,19 @@ class OutputCaptureWin(OutputCapture):
         try:
             # Initialize COM for this thread (required for Windows audio)
             import pythoncom
+
             pythoncom.CoInitialize()
 
-            self._debug_print(f"Starting recording with device: {self._loopback_device.name}")
-            self._debug_print(f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}")
+            self._debug_print(
+                f"Starting recording with device: {self._loopback_device.name}"
+            )
+            self._debug_print(
+                f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}"
+            )
 
             # Open the recorder once and keep it open
             with self._loopback_device.recorder(
-                samplerate=self._sample_rate,
-                channels=self._channels
+                samplerate=self._sample_rate, channels=self._channels
             ) as recorder:
 
                 while not self._stop_recording.is_set():
@@ -170,7 +199,7 @@ class OutputCaptureWin(OutputCapture):
                                 data = data.reshape(-1, 1)
                             elif data.shape[1] > self._channels:
                                 # If more channels than needed, take the first N channels
-                                data = data[:, :self._channels]
+                                data = data[:, : self._channels]
                             elif data.shape[1] < self._channels and self._channels == 2:
                                 # If mono but stereo requested, duplicate channel
                                 data = np.column_stack([data, data])
@@ -179,7 +208,7 @@ class OutputCaptureWin(OutputCapture):
                             audio_data = AudioData(
                                 data=data.astype(np.float32),
                                 time=time.time(),
-                                overflowed=False
+                                overflowed=False,
                             )
 
                             # Add to queue (discard old data if queue is full)
@@ -197,15 +226,20 @@ class OutputCaptureWin(OutputCapture):
 
         except ImportError:
             # If pythoncom is not available, try without COM initialization
-            self._debug_print("pythoncom not available, trying without COM initialization")
+            self._debug_print(
+                "pythoncom not available, trying without COM initialization"
+            )
             try:
-                self._debug_print(f"Starting recording with device: {self._loopback_device.name}")
-                self._debug_print(f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}")
+                self._debug_print(
+                    f"Starting recording with device: {self._loopback_device.name}"
+                )
+                self._debug_print(
+                    f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}"
+                )
 
                 # Open the recorder once and keep it open
                 with self._loopback_device.recorder(
-                    samplerate=self._sample_rate,
-                    channels=self._channels
+                    samplerate=self._sample_rate, channels=self._channels
                 ) as recorder:
 
                     while not self._stop_recording.is_set():
@@ -220,8 +254,11 @@ class OutputCaptureWin(OutputCapture):
                                     data = data.reshape(-1, 1)
                                 elif data.shape[1] > self._channels:
                                     # If more channels than needed, take the first N channels
-                                    data = data[:, :self._channels]
-                                elif data.shape[1] < self._channels and self._channels == 2:
+                                    data = data[:, : self._channels]
+                                elif (
+                                    data.shape[1] < self._channels
+                                    and self._channels == 2
+                                ):
                                     # If mono but stereo requested, duplicate channel
                                     data = np.column_stack([data, data])
 
@@ -229,7 +266,7 @@ class OutputCaptureWin(OutputCapture):
                                 audio_data = AudioData(
                                     data=data.astype(np.float32),
                                     time=time.time(),
-                                    overflowed=False
+                                    overflowed=False,
                                 )
 
                                 # Add to queue (discard old data if queue is full)
@@ -256,7 +293,9 @@ class OutputCaptureWin(OutputCapture):
                 pass
             self._debug_print("Recording worker stopped")
 
-    def start_audio_capture(self, device_name=None, sample_rate=None, channels=None, blocksize=None):
+    def start_audio_capture(
+        self, device_name=None, sample_rate=None, channels=None, blocksize=None
+    ):
         """
         Starts audio capture
 
@@ -303,8 +342,7 @@ class OutputCaptureWin(OutputCapture):
             self._debug_print(f"Testing device: {self._loopback_device.name}")
             try:
                 with self._loopback_device.recorder(
-                    samplerate=self._sample_rate,
-                    channels=self._channels
+                    samplerate=self._sample_rate, channels=self._channels
                 ) as test_recorder:
                     # Try to record a small test sample
                     test_data = test_recorder.record(numframes=128)
@@ -316,8 +354,7 @@ class OutputCaptureWin(OutputCapture):
 
             # Start recording thread
             self._recording_thread = threading.Thread(
-                target=self._recording_worker,
-                daemon=True
+                target=self._recording_worker, daemon=True
             )
             self._recording_thread.start()
 
@@ -329,7 +366,9 @@ class OutputCaptureWin(OutputCapture):
                 raise RuntimeError("Recording thread failed to start")
 
             self._stream_initialized = True
-            self._debug_print(f"Audio capture started successfully with {self._loopback_device.name}")
+            self._debug_print(
+                f"Audio capture started successfully with {self._loopback_device.name}"
+            )
             return True
 
         except Exception as e:
@@ -392,4 +431,4 @@ class OutputCaptureWin(OutputCapture):
 
 
 # Export the necessary class as a module
-__all__ = ['OutputCaptureWin']
+__all__ = ["OutputCaptureWin"]

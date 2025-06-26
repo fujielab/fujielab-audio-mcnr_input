@@ -60,15 +60,11 @@ def create_output_capture_instance(sample_rate=44100, channels=2, blocksize=None
 
     if platform.system() == "Darwin":
         return OutputCaptureMac(
-            sample_rate=sample_rate,
-            channels=channels,
-            blocksize=blocksize
+            sample_rate=sample_rate, channels=channels, blocksize=blocksize
         )
     else:
         return OutputCaptureWin(
-            sample_rate=sample_rate,
-            channels=channels,
-            blocksize=blocksize
+            sample_rate=sample_rate, channels=channels, blocksize=blocksize
         )
 
 
@@ -86,17 +82,21 @@ def list_devices():
         return OutputCaptureMac.list_audio_devices()
     else:
         # Use Windows-specific list_audio_devices if available
-        if hasattr(OutputCaptureWin, 'list_audio_devices'):
+        if hasattr(OutputCaptureWin, "list_audio_devices"):
             return OutputCaptureWin.list_audio_devices()
         else:
             print("\nAvailable audio output devices:")
             try:
                 devices = sd.query_devices()
                 for i, dev in enumerate(devices):
-                    if dev['max_output_channels'] > 0:
-                        print(f"[{i}] {dev['name']} (Output Channels: {dev['max_output_channels']}, Host: {dev.get('hostapi')})")
+                    if dev["max_output_channels"] > 0:
+                        print(
+                            f"[{i}] {dev['name']} (Output Channels: {dev['max_output_channels']}, Host: {dev.get('hostapi')})"
+                        )
 
-                print("\nTo capture output on Windows, use the output device labeled 'WASAPI'.")
+                print(
+                    "\nTo capture output on Windows, use the output device labeled 'WASAPI'."
+                )
                 return True
             except Exception as e:
                 print(f"Error retrieving device list: {e}")

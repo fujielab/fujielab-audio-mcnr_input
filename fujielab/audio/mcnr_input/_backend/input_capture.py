@@ -9,6 +9,7 @@ Platform-specific implementations are automatically selected.
 このモジュールは、各種オーディオ入力（マイク等）からのオーディオをキャプチャするためのクラスを提供します。
 プラットフォーム固有の実装が自動的に選択されます。
 """
+
 import platform
 
 # Import base class for type hints
@@ -23,4 +24,9 @@ else:
     from .input_capture_win import create_input_capture_instance, list_devices
 
 # Re-export the platform-appropriate class and functions for backward compatibility
-__all__ = ['InputCapture', 'InputCaptureBase', 'create_input_capture_instance', 'list_devices']
+__all__ = [
+    "InputCapture",
+    "InputCaptureBase",
+    "create_input_capture_instance",
+    "list_devices",
+]

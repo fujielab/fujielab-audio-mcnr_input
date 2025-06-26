@@ -4,6 +4,7 @@ Implementation using callback functions and queues
 
 Provides the OutputCaptureMac class, which inherits from the OutputCapture abstract class.
 """
+
 import os
 import subprocess
 import time
@@ -66,12 +67,13 @@ class OutputCaptureMac(OutputCapture):
         bool
             True if successful, False if failed
         """
+
         def _debug_print_local(message):
             if debug:
                 print(message)
 
         # Check if SwitchAudioSource is available
-        if not shutil.which('SwitchAudioSource'):
+        if not shutil.which("SwitchAudioSource"):
             _debug_print_local("SwitchAudioSource is not installed.")
             _debug_print_local("To install: brew install switchaudio-osx")
             return False
@@ -79,23 +81,39 @@ class OutputCaptureMac(OutputCapture):
         try:
             # List input devices
             _debug_print_local("Input devices:")
-            result = subprocess.run(["SwitchAudioSource", "-a", "-t", "input"],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            result = subprocess.run(
+                ["SwitchAudioSource", "-a", "-t", "input"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             for line in result.stdout.splitlines():
                 _debug_print_local(f"  {line}")
 
             # List output devices
             _debug_print_local("\nOutput devices:")
-            result = subprocess.run(["SwitchAudioSource", "-a", "-t", "output"],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            result = subprocess.run(
+                ["SwitchAudioSource", "-a", "-t", "output"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             for line in result.stdout.splitlines():
                 _debug_print_local(f"  {line}")
 
             # Also display the current devices
-            current_input = subprocess.run(["SwitchAudioSource", "-c", "-t", "input"],
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout.strip()
-            current_output = subprocess.run(["SwitchAudioSource", "-c", "-t", "output"],
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout.strip()
+            current_input = subprocess.run(
+                ["SwitchAudioSource", "-c", "-t", "input"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            ).stdout.strip()
+            current_output = subprocess.run(
+                ["SwitchAudioSource", "-c", "-t", "output"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            ).stdout.strip()
 
             _debug_print_local(f"\nCurrent input device: {current_input}")
             _debug_print_local(f"Current output device: {current_output}")
@@ -127,13 +145,19 @@ class OutputCaptureMac(OutputCapture):
             if self._original_device is None:
                 self._original_device = subprocess.run(
                     ["SwitchAudioSource", "-c", "-t", "output"],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
                 ).stdout.strip()
                 self._debug_print(f"Original output device: {self._original_device}")
 
             # Switch to the new device
-            subprocess.run(["SwitchAudioSource", "-s", device_name, "-t", "output"],
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            subprocess.run(
+                ["SwitchAudioSource", "-s", device_name, "-t", "output"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
             self._current_device = device_name
             self._debug_print(f"Switched output device to {device_name}")
             return True
@@ -152,9 +176,15 @@ class OutputCaptureMac(OutputCapture):
         """
         if self._original_device and self._original_device != self._current_device:
             try:
-                subprocess.run(["SwitchAudioSource", "-s", self._original_device, "-t", "output"],
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-                self._debug_print(f"Restored output device to original: {self._original_device}")
+                subprocess.run(
+                    ["SwitchAudioSource", "-s", self._original_device, "-t", "output"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                )
+                self._debug_print(
+                    f"Restored output device to original: {self._original_device}"
+                )
                 self._current_device = self._original_device
                 return True
             except Exception as e:
@@ -178,14 +208,19 @@ class OutputCaptureMac(OutputCapture):
         bool
             True if correctly configured, False if there are issues
         """
+
         def _debug_print_local(message):
             if debug:
                 print(message)
 
         try:
             # Get the list of devices
-            result = subprocess.run(["SwitchAudioSource", "-a", "-t", "output"],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            result = subprocess.run(
+                ["SwitchAudioSource", "-a", "-t", "output"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
 
             if "fujielab-output" not in result.stdout:
                 _debug_print_local("The 'fujielab-output' device does not exist.")
@@ -207,18 +242,25 @@ class OutputCaptureMac(OutputCapture):
             # Also check if BlackHole 2ch is recognized by sounddevice
             try:
                 import sounddevice as sd
+
                 devices = sd.query_devices()
                 blackhole_input_found = False
 
                 for i, dev in enumerate(devices):
-                    if 'BlackHole 2ch' in dev['name'] and dev['max_input_channels'] > 0:
+                    if "BlackHole 2ch" in dev["name"] and dev["max_input_channels"] > 0:
                         blackhole_input_found = True
-                        _debug_print_local(f"sounddevice recognizes BlackHole 2ch input device (ID: {i})")
+                        _debug_print_local(
+                            f"sounddevice recognizes BlackHole 2ch input device (ID: {i})"
+                        )
                         break
 
                 if not blackhole_input_found:
-                    _debug_print_local("Warning: sounddevice does not recognize BlackHole 2ch input device")
-                    _debug_print_local("- Please ensure BlackHole 2ch is correctly installed")
+                    _debug_print_local(
+                        "Warning: sounddevice does not recognize BlackHole 2ch input device"
+                    )
+                    _debug_print_local(
+                        "- Please ensure BlackHole 2ch is correctly installed"
+                    )
                     # Issue a warning but do not fail (due to possible internal access restrictions)
             except Exception as sd_err:
                 _debug_print_local(f"sounddevice device check error: {sd_err}")
@@ -227,20 +269,35 @@ class OutputCaptureMac(OutputCapture):
             # Check if fujielab-output can actually be selected
             try:
                 # Temporarily switch to fujielab-output
-                current = subprocess.run(["SwitchAudioSource", "-c", "-t", "output"],
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout.strip()
+                current = subprocess.run(
+                    ["SwitchAudioSource", "-c", "-t", "output"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                ).stdout.strip()
 
                 if current != "fujielab-output":
-                    test_switch = subprocess.run(["SwitchAudioSource", "-s", "fujielab-output", "-t", "output"],
-                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    test_switch = subprocess.run(
+                        ["SwitchAudioSource", "-s", "fujielab-output", "-t", "output"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
 
                     # Switch back
-                    subprocess.run(["SwitchAudioSource", "-s", current, "-t", "output"],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    subprocess.run(
+                        ["SwitchAudioSource", "-s", current, "-t", "output"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
 
                     if test_switch.returncode != 0:
-                        _debug_print_local("Warning: Failed to switch to fujielab-output device")
-                        _debug_print_local("- Please check if the device is correctly configured")
+                        _debug_print_local(
+                            "Warning: Failed to switch to fujielab-output device"
+                        )
+                        _debug_print_local(
+                            "- Please check if the device is correctly configured"
+                        )
             except Exception as switch_err:
                 _debug_print_local(f"Device switch test error: {switch_err}")
 
@@ -249,7 +306,9 @@ class OutputCaptureMac(OutputCapture):
             _debug_print_local(f"Error occurred while checking devices: {e}")
             return False
 
-    def start_audio_capture(self, device_name=None, sample_rate=None, channels=None, blocksize=None):
+    def start_audio_capture(
+        self, device_name=None, sample_rate=None, channels=None, blocksize=None
+    ):
         """
         Start audio capture
 
@@ -290,9 +349,13 @@ class OutputCaptureMac(OutputCapture):
         # Check fujielab-output device existence and configuration
         try:
             # Get the list of output devices
-            result = subprocess.run(["SwitchAudioSource", "-a", "-t", "output"],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            
+            result = subprocess.run(
+                ["SwitchAudioSource", "-a", "-t", "output"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
             if "fujielab-output" not in result.stdout:
                 print("fujielab-output device not found.")
                 print("Please create a multi-output device using the following steps:")
@@ -301,21 +364,35 @@ class OutputCaptureMac(OutputCapture):
                 print("3. Click the '+' button to create a multi-output device")
                 print("4. Select both the current speaker and 'BlackHole 2ch'")
                 print("5. Name the device 'fujielab-output' and click 'Done'")
-                raise RuntimeError("fujielab-output multi-output device is required but not found")
-            
+                raise RuntimeError(
+                    "fujielab-output multi-output device is required but not found"
+                )
+
             # Check if fujielab-output is set as the default output device
-            current_output = subprocess.run(["SwitchAudioSource", "-c", "-t", "output"],
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout.strip()
-            
+            current_output = subprocess.run(
+                ["SwitchAudioSource", "-c", "-t", "output"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            ).stdout.strip()
+
             if current_output != "fujielab-output":
-                print("Warning: The multi-output device 'fujielab-output' is not set as the default output device.")
-                print("The application may not work correctly unless you set 'fujielab-output' as the output device for applications.")
-                self._debug_print(f"Current output device: {current_output}, Expected: fujielab-output")
-        
+                print(
+                    "Warning: The multi-output device 'fujielab-output' is not set as the default output device."
+                )
+                print(
+                    "The application may not work correctly unless you set 'fujielab-output' as the output device for applications."
+                )
+                self._debug_print(
+                    f"Current output device: {current_output}, Expected: fujielab-output"
+                )
+
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to check audio devices: {e}")
         except Exception as e:
-            raise RuntimeError(f"Error occurred while checking fujielab-output device: {e}")
+            raise RuntimeError(
+                f"Error occurred while checking fujielab-output device: {e}"
+            )
 
         # The device is now open and ready to receive data
         # The stream can be started even if no audio is being played
@@ -326,8 +403,10 @@ class OutputCaptureMac(OutputCapture):
             self._debug_print("\nAvailable audio devices:")
             devices = sd.query_devices()
             for i, dev in enumerate(devices):
-                if dev['max_input_channels'] > 0:
-                    self._debug_print(f"  {i}: {dev['name']} (Input channels: {dev['max_input_channels']})")
+                if dev["max_input_channels"] > 0:
+                    self._debug_print(
+                        f"  {i}: {dev['name']} (Input channels: {dev['max_input_channels']})"
+                    )
 
             # Find fujielab-output device ID for recording (BlackHole 2ch component)
             fujielab_id = None
@@ -336,43 +415,61 @@ class OutputCaptureMac(OutputCapture):
 
             for i, dev in enumerate(devices):
                 # Check with multiple conditions
-                if dev['max_input_channels'] > 0:  # Input devices only
-                    if 'fujielab-output' == dev['name']:  # Exact match for fujielab-output
+                if dev["max_input_channels"] > 0:  # Input devices only
+                    if (
+                        "fujielab-output" == dev["name"]
+                    ):  # Exact match for fujielab-output
                         fujielab_id = i
                         break
-                    elif 'BlackHole 2ch' == dev['name']:  # Exact match for BlackHole 2ch
+                    elif (
+                        "BlackHole 2ch" == dev["name"]
+                    ):  # Exact match for BlackHole 2ch
                         blackhole_id = i
-                    elif 'BlackHole' in dev['name']:  # Partial match as a candidate
-                        blackhole_candidates.append((i, dev['name']))
+                    elif "BlackHole" in dev["name"]:  # Partial match as a candidate
+                        blackhole_candidates.append((i, dev["name"]))
 
             # Priority: fujielab-output > BlackHole 2ch > BlackHole candidates
             target_device_id = None
             target_device_name = None
-            
+
             if fujielab_id is not None:
                 target_device_id = fujielab_id
                 target_device_name = "fujielab-output"
-                self._debug_print(f"Using fujielab-output device (Device ID: {fujielab_id})")
+                self._debug_print(
+                    f"Using fujielab-output device (Device ID: {fujielab_id})"
+                )
             elif blackhole_id is not None:
                 target_device_id = blackhole_id
                 target_device_name = "BlackHole 2ch"
-                self._debug_print(f"Using BlackHole 2ch device (Device ID: {blackhole_id})")
+                self._debug_print(
+                    f"Using BlackHole 2ch device (Device ID: {blackhole_id})"
+                )
             elif blackhole_candidates:
                 target_device_id = blackhole_candidates[0][0]
                 target_device_name = blackhole_candidates[0][1]
-                print(f"Warning: fujielab-output not found in input devices, using {target_device_name}")
+                print(
+                    f"Warning: fujielab-output not found in input devices, using {target_device_name}"
+                )
 
             if target_device_id is None:
-                print("Error: Neither fujielab-output nor BlackHole 2ch device found for recording.")
-                print("Please ensure BlackHole is installed and fujielab-output is properly configured.")
+                print(
+                    "Error: Neither fujielab-output nor BlackHole 2ch device found for recording."
+                )
+                print(
+                    "Please ensure BlackHole is installed and fujielab-output is properly configured."
+                )
                 print("You can install BlackHole with the following command:")
                 print("  brew install blackhole-2ch")
                 return False
 
-            self._debug_print(f"Selected recording device: {target_device_name} (Device ID: {target_device_id})")
+            self._debug_print(
+                f"Selected recording device: {target_device_name} (Device ID: {target_device_id})"
+            )
 
             # Debug output for stream settings
-            self._debug_print(f"Stream settings: Sample rate={self._sample_rate}, Channels={self._channels}, Block size={self._blocksize}")
+            self._debug_print(
+                f"Stream settings: Sample rate={self._sample_rate}, Channels={self._channels}, Block size={self._blocksize}"
+            )
 
             # For safety, recreate the stream
             if self._capture_stream is not None:
@@ -382,7 +479,9 @@ class OutputCaptureMac(OutputCapture):
                     self._capture_stream = None
                     self._debug_print("Cleaned up existing capture stream")
                 except Exception as e:
-                    self._debug_print(f"Cleanup error for existing stream (ignored): {e}")
+                    self._debug_print(
+                        f"Cleanup error for existing stream (ignored): {e}"
+                    )
 
             # Allow multiple attempts (rarely, the first attempt may fail)
             max_attempts = 2
@@ -401,14 +500,18 @@ class OutputCaptureMac(OutputCapture):
                         samplerate=self._sample_rate,
                         channels=self._channels,
                         blocksize=self._blocksize,
-                        dtype='float32',
-                        latency='high',  # Prioritize stability with high latency and large buffer
+                        dtype="float32",
+                        latency="high",  # Prioritize stability with high latency and large buffer
                         callback=self._audio_callback,  # Set the callback function
-                        extra_settings=None  # Use system default settings (more stable)
+                        extra_settings=None,  # Use system default settings (more stable)
                     )
                     self._capture_stream.start()
-                    self._debug_print(f"Started recording from {target_device_name} (rate={self._sample_rate}Hz, channels={self._channels}, blocksize={self._blocksize}, using callback)")
-                    self._time_offset = time.time() - self._capture_stream.time  # Calculate time offset for accurate timestamps
+                    self._debug_print(
+                        f"Started recording from {target_device_name} (rate={self._sample_rate}Hz, channels={self._channels}, blocksize={self._blocksize}, using callback)"
+                    )
+                    self._time_offset = (
+                        time.time() - self._capture_stream.time
+                    )  # Calculate time offset for accurate timestamps
 
                     # Wait for the recording stream to stabilize (a bit longer)
                     time.sleep(0.8)
@@ -427,8 +530,12 @@ class OutputCaptureMac(OutputCapture):
                         # Consider successful if the stream can be started
                         # Explicitly record the normal state in the instance variable
                         self._stream_initialized = True
-                        self._debug_print("Speaker capture stream (callback method) initialized successfully (_stream_initialized = True)")
-                        self._debug_print("- Audio will be captured automatically when played")
+                        self._debug_print(
+                            "Speaker capture stream (callback method) initialized successfully (_stream_initialized = True)"
+                        )
+                        self._debug_print(
+                            "- Audio will be captured automatically when played"
+                        )
                         return True
                     except Exception as callback_err:
                         print(f"Callback initialization error: {callback_err}")
@@ -447,11 +554,15 @@ class OutputCaptureMac(OutputCapture):
                             continue
                         else:
                             # Consider successful even if there is an error in the last attempt, as the stream itself is started
-                            print("Failed test read, but the stream is considered started")
+                            print(
+                                "Failed test read, but the stream is considered started"
+                            )
                             print("- Audio capture will continue to be attempted")
                             # Explicitly record the normal state in the instance variable
                             self._stream_initialized = True
-                            print("Test read error occurred, but the stream is initialized (_stream_initialized = True)")
+                            print(
+                                "Test read error occurred, but the stream is initialized (_stream_initialized = True)"
+                            )
                             return True
                 except Exception as stream_err:
                     print(f"Stream startup error: {stream_err}")
@@ -464,6 +575,7 @@ class OutputCaptureMac(OutputCapture):
             print(f"Failed to start audio stream: {e}")
             # Display more detailed error information
             import traceback
+
             traceback.print_exc()
             return False
         finally:
@@ -485,15 +597,23 @@ class OutputCaptureMac(OutputCapture):
         """
         # Check for Homebrew
         try:
-            subprocess.run(["brew", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            subprocess.run(
+                ["brew", "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("Homebrew is not installed.")
             return False
 
         # Check for BlackHole
         try:
-            result = subprocess.run(["brew", "list", "blackhole-2ch"],
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result = subprocess.run(
+                ["brew", "list", "blackhole-2ch"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
             if result.returncode != 0:
                 print("BlackHole 2ch is not installed.")
                 return False
@@ -502,7 +622,7 @@ class OutputCaptureMac(OutputCapture):
             return False
 
         # Check for SwitchAudioSource
-        if not shutil.which('SwitchAudioSource'):
+        if not shutil.which("SwitchAudioSource"):
             print("SwitchAudioSource is not installed.")
             return False
 
@@ -582,16 +702,22 @@ class OutputCaptureMac(OutputCapture):
                 # Error detection
                 if status:
                     # Log only important errors, excluding warning-level situations
-                    important_errors = [flag for flag in dir(status)
-                                    if not flag.startswith('_') and
-                                    getattr(status, flag) and
-                                    flag not in ('input_underflow', 'output_underflow')]
+                    important_errors = [
+                        flag
+                        for flag in dir(status)
+                        if not flag.startswith("_")
+                        and getattr(status, flag)
+                        and flag not in ("input_underflow", "output_underflow")
+                    ]
 
                     if important_errors:
                         error_str = ", ".join(important_errors)
                         self._callback_error = f"Audio callback error: {error_str}"
                         # Output only critical errors
-                        if any(err in important_errors for err in ('input_overflow', 'output_overflow')):
+                        if any(
+                            err in important_errors
+                            for err in ("input_overflow", "output_overflow")
+                        ):
                             print(self._callback_error)
 
                 # Data processing
@@ -616,7 +742,11 @@ class OutputCaptureMac(OutputCapture):
                     audio_data = AudioData(
                         data=data.copy(),
                         time=timestamp,
-                        overflowed=(status and hasattr(status, 'input_overflow') and status.input_overflow)
+                        overflowed=(
+                            status
+                            and hasattr(status, "input_overflow")
+                            and status.input_overflow
+                        ),
                     )
 
                     # If the queue is full, discard old data
@@ -637,11 +767,12 @@ class OutputCaptureMac(OutputCapture):
                 self._callback_error = f"Audio callback exception: {str(e)}"
                 print(self._callback_error)
                 import traceback
+
                 traceback.print_exc()
 
 
 # Export necessary classes as a module
-__all__ = ['OutputCapture', 'OutputCaptureMac']
+__all__ = ["OutputCapture", "OutputCaptureMac"]
 
 
 if __name__ == "__main__":
@@ -669,7 +800,9 @@ if __name__ == "__main__":
     # - Block size: blocksize=2048
     mac_capture.start_audio_capture()
 
-    print(f"\nStarted audio capture (rate={mac_capture.sample_rate}Hz, channels={mac_capture.channels}, blocksize={mac_capture.blocksize})")
+    print(
+        f"\nStarted audio capture (rate={mac_capture.sample_rate}Hz, channels={mac_capture.channels}, blocksize={mac_capture.blocksize})"
+    )
     print("Please play audio for testing.")
     try:
         # List to accumulate data
@@ -684,8 +817,15 @@ if __name__ == "__main__":
                 all_audio_data.append(audio_data.data)
                 # Display progress
                 if len(all_audio_data) % 10 == 0:
-                    duration = len(all_audio_data) * mac_capture.blocksize / mac_capture.sample_rate
-                    print(f"Recording: {duration:.1f} seconds ({len(all_audio_data)} blocks)", end="\r")
+                    duration = (
+                        len(all_audio_data)
+                        * mac_capture.blocksize
+                        / mac_capture.sample_rate
+                    )
+                    print(
+                        f"Recording: {duration:.1f} seconds ({len(all_audio_data)} blocks)",
+                        end="\r",
+                    )
             except RuntimeError as e:
                 print(f"\nError: {e}")
                 break
@@ -702,17 +842,23 @@ if __name__ == "__main__":
                 # Concatenate all data
                 all_samples = np.vstack(all_audio_data)
                 if len(all_audio_data) > 0:
-                    print(f"shape of sample: {all_audio_data[0].shape if hasattr(all_audio_data[0], 'shape') else '-'}")
+                    print(
+                        f"shape of sample: {all_audio_data[0].shape if hasattr(all_audio_data[0], 'shape') else '-'}"
+                    )
                 print(f"shape of all_samples: {all_samples.shape}")
                 # Save as WAV file
                 output_file = "output.wav"
                 import soundfile as sf
+
                 sf.write(output_file, all_samples, mac_capture.sample_rate)
                 duration = len(all_samples) / mac_capture.sample_rate
-                print(f"Saved recording data to {output_file} (length: {duration:.2f} seconds)")
+                print(
+                    f"Saved recording data to {output_file} (length: {duration:.2f} seconds)"
+                )
             except Exception as e:
                 print(f"File save error: {e}")
                 import traceback
+
                 traceback.print_exc()
         else:
             print("No data to save")

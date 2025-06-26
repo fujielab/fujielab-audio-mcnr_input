@@ -66,8 +66,12 @@ class MultiChannelNoiseReductionProcessor(Processor):
         """
         super().__init__()
 
-        self.input_audio_buffer = None  # Placeholder for audio buffer if needed in future
-        self.output_audio_buffer = None  # Placeholder for output audio buffer if needed in future
+        self.input_audio_buffer = (
+            None  # Placeholder for audio buffer if needed in future
+        )
+        self.output_audio_buffer = (
+            None  # Placeholder for output audio buffer if needed in future
+        )
         self.window_size = 512
         self.hop_size = self.window_size // 4  # 75% overlap
         self.chunk_size = None
@@ -81,15 +85,17 @@ class MultiChannelNoiseReductionProcessor(Processor):
             self.chunk_size = input_chunk.shape[0]
             self.input_audio_buffer = input_chunk.copy()
 
-        self.input_audio_buffer = np.vstack((self.input_audio_buffer, input_chunk.copy()))
+        self.input_audio_buffer = np.vstack(
+            (self.input_audio_buffer, input_chunk.copy())
+        )
 
         # Precompute normalization factor for overlap-add
         normalization_window = np.hanning(self.window_size)
-        normalization_factor = np.sum(normalization_window ** 2) / self.hop_size
+        normalization_factor = np.sum(normalization_window**2) / self.hop_size
 
         while self.input_audio_buffer.shape[0] > self.window_size:
-            chunk_to_process = self.input_audio_buffer[:self.window_size]
-            self.input_audio_buffer = self.input_audio_buffer[self.hop_size:]
+            chunk_to_process = self.input_audio_buffer[: self.window_size]
+            self.input_audio_buffer = self.input_audio_buffer[self.hop_size :]
 
             # Apply windowing
             window = np.hanning(self.window_size).reshape(-1, 1)
@@ -122,20 +128,36 @@ class MultiChannelNoiseReductionProcessor(Processor):
                 required_size = self.window_size - self.hop_size
                 if self.output_audio_buffer.shape[0] < required_size:
                     # Pad the output buffer if it's too small
-                    padding = np.zeros((required_size - self.output_audio_buffer.shape[0], self.output_audio_buffer.shape[1]))
-                    self.output_audio_buffer = np.vstack((self.output_audio_buffer, padding))
+                    padding = np.zeros(
+                        (
+                            required_size - self.output_audio_buffer.shape[0],
+                            self.output_audio_buffer.shape[1],
+                        )
+                    )
+                    self.output_audio_buffer = np.vstack(
+                        (self.output_audio_buffer, padding)
+                    )
 
                 overlap_start = self.output_audio_buffer.shape[0] - required_size
                 overlap_end = self.output_audio_buffer.shape[0]
-                self.output_audio_buffer[overlap_start:overlap_end] += chunk_to_process[:required_size] / normalization_factor
-                self.output_audio_buffer = np.vstack([self.output_audio_buffer, chunk_to_process[required_size:] / normalization_factor])
+                self.output_audio_buffer[overlap_start:overlap_end] += (
+                    chunk_to_process[:required_size] / normalization_factor
+                )
+                self.output_audio_buffer = np.vstack(
+                    [
+                        self.output_audio_buffer,
+                        chunk_to_process[required_size:] / normalization_factor,
+                    ]
+                )
 
-        if self.output_audio_buffer is None or len(self.output_audio_buffer) < self.chunk_size + (self.window_size - self.hop_size):
+        if self.output_audio_buffer is None or len(
+            self.output_audio_buffer
+        ) < self.chunk_size + (self.window_size - self.hop_size):
             # Ensure the output audio buffer has enough data to return
             return np.zeros_like(input_chunk)
         else:
             # Return the output chunk of the specified size
-            output_chunk = self.output_audio_buffer[:self.chunk_size].copy()
-            self.output_audio_buffer = self.output_audio_buffer[self.chunk_size:]
+            output_chunk = self.output_audio_buffer[: self.chunk_size].copy()
+            self.output_audio_buffer = self.output_audio_buffer[self.chunk_size :]
 
             return output_chunk

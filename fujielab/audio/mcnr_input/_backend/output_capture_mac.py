@@ -49,6 +49,7 @@ class OutputCaptureMac(OutputCapture):
         self._audio_queue = queue.Queue(maxsize=20)
         self._callback_error = None
         self._callback_lock = threading.Lock()
+        self._time_offset = 0.0  # offset from system time to audio time
 
     @staticmethod
     def list_audio_devices(debug=False):
@@ -437,6 +438,14 @@ class OutputCaptureMac(OutputCapture):
             import traceback
             traceback.print_exc()
             return False
+        finally:
+            if self._stream_initialized:
+                self._time_offset = time.time() - self._capture_stream.time  # Calculate time offset from stream start
+            # If the stream is not initialized, reset the state
+            if not self._stream_initialized:
+                self._capture_stream = None
+                self._debug_print("Stream initialization failed, resetting state")
+                self._stream_initialized = False
 
     @staticmethod
     def _check_required_tools():
@@ -573,7 +582,7 @@ class OutputCaptureMac(OutputCapture):
 
                     # Convert to AudioData object
                     try:
-                        timestamp = time_info.inputBufferAdcTime
+                        timestamp = self._time_offset + time_info.inputBufferAdcTime
                     except AttributeError:
                         timestamp = time.time()
 

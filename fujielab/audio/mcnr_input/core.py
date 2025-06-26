@@ -431,11 +431,14 @@ class InputStream:
                 max_time = max(timestamps)
                 base_index = timestamps.index(max_time)  # Use the latest timestamp as the base
 
+                self._debug_print(f"Base index: {base_index}, Base time: {max_time:.3f}s")
+
                 # Align all data to the latest timestamp
                 for i, capture in enumerate(self.capture_instances):
                     while timestamps[i] < max_time:
                         try:
                             data = capture.read_audio_capture()
+                            self._debug_print(f"Capture {i} data: {data.data.shape} at time {data.time:.3f}s")
                             if data is not None:
                                 timestamps[i] = data.time + self.captures[i].offset
                                 captured_data[i] = data.data
@@ -453,6 +456,7 @@ class InputStream:
 
                 sync_initialized = True
                 overflow_detected = False
+                self._debug_print("Synchronization complete")
 
             # Adjust data using offsets to ensure continuity
             for i, data in enumerate(captured_data):
@@ -527,10 +531,10 @@ if __name__ == "__main__":
         blocksize=512,
         captures=[
             CaptureConfig(capture_type='Input', device_name=None, channels=2),
-            CaptureConfig(capture_type='Output', device_name=None, channels=2, offset=0.05),
+            CaptureConfig(capture_type='Output', device_name=None, channels=2), # , offset=0.05),
         ],
         callback=callback,
-        debug=False  # デバッグメッセージを無効にする（必要に応じて True に変更）
+        debug=False # True  # デバッグメッセージを無効にする（必要に応じて True に変更）
     )
 
     try:

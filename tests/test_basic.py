@@ -117,6 +117,17 @@ class TestInputStream:
         # and is skipped in automated testing
         pass
 
+    def test_read_returns_queue_data(self):
+        """read() should return data placed in the queue"""
+        stream = InputStream(debug=False)
+        sample = np.random.rand(10, 2).astype(np.float32)
+        stream.data_queue.put(sample)
+
+        result = stream.read(block=False)
+
+        assert isinstance(result, np.ndarray)
+        assert np.array_equal(result, sample)
+
 
 class TestPlatformDetection:
     """Test platform-specific imports"""

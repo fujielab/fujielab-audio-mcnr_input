@@ -12,7 +12,7 @@ def main():
     print("=== Windows音声出力キャプチャテスト ===")
     
     # OutputCaptureWinのインスタンスを作成
-    capture = OutputCaptureWin(sample_rate=44100, channels=2, debug=True)
+    capture = OutputCaptureWin(sample_rate=16000, channels=2, debug=True)
     
     try:
         # 音声キャプチャを開始
@@ -28,9 +28,9 @@ def main():
         
         # 開始時刻を記録
         start_time = time.time()
-        recording_duration = 5.0  # 5秒間録音
-        
-        # 5秒間データを収集
+        recording_duration = 10.0  # 10秒間録音
+
+        # 10秒間データを収集
         while time.time() - start_time < recording_duration:
             try:
                 # 音声データを読み取り

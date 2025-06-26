@@ -88,7 +88,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                 self._debug_print("Warning: pythoncom not available, COM initialization skipped")
                 # Try alternative COM initialization
                 try:
-                    import comtypes
+                    import comtypes # type: ignore
                     comtypes.CoInitialize()
                     com_initialized = True
                     self._debug_print("COM initialized using comtypes")
@@ -157,7 +157,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                     self._debug_print("COM uninitialized for recording thread")
                 except ImportError:
                     try:
-                        import comtypes
+                        import comtypes # type: ignore
                         comtypes.CoUninitialize()
                         self._debug_print("COM uninitialized using comtypes")
                     except ImportError:

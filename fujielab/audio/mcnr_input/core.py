@@ -439,9 +439,11 @@ class InputStream:
                 # No data received, wait briefly before retrying
                 time.sleep(0.01)
                 continue
-            
-            for i, data in enumerate(captured_data):
-                self._debug_print(f"Capture {i} data: {data.shape} at time {timestamps[i]:.3f}s")
+
+            if self.debug:
+                for i, data in enumerate(captured_data):
+                    rms = np.sqrt(np.mean(np.square(data))) if data.size > 0 else 0
+                    self._debug_print(f"Capture {i} data: {data.shape} at time {timestamps[i]:.3f}s: RMS={rms:.3f}...")
 
             # Synchronization logic
             if not sync_initialized or overflow_detected:

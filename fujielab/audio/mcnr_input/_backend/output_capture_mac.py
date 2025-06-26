@@ -287,23 +287,35 @@ class OutputCaptureMac(OutputCapture):
             self._debug_print("Please run: scripts/install_audio_tools.py")
             return False
 
-        # Check fujielab-output device
-        fujielab_device_exists = self.check_fujielab_output_device(debug=self.debug)
-        if not fujielab_device_exists:
-            print("fujielab-output device not found.")
-            print("Please create a multi-output device using the following steps:")
-            print("1. Go to System Preferences > Sound")
-            print("2. Check BlackHole in the 'Output' tab")
-            print("3. Click the '+' button to create a multi-output device")
-            print("4. Select both the current speaker and 'BlackHole 2ch'")
-            print("5. Name the device 'fujielab-output' and click 'Done'")
-            return False
-
-        # Device selection (fujielab-output if not specified)
-        target_device = device_name if device_name else "fujielab-output"
-        if not self.select_device_by_name(target_device):
-            print(f"Failed to switch to {target_device}")
-            return False
+        # Check fujielab-output device existence and configuration
+        try:
+            # Get the list of output devices
+            result = subprocess.run(["SwitchAudioSource", "-a", "-t", "output"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            
+            if "fujielab-output" not in result.stdout:
+                print("fujielab-output device not found.")
+                print("Please create a multi-output device using the following steps:")
+                print("1. Go to System Preferences > Sound")
+                print("2. Check BlackHole in the 'Output' tab")
+                print("3. Click the '+' button to create a multi-output device")
+                print("4. Select both the current speaker and 'BlackHole 2ch'")
+                print("5. Name the device 'fujielab-output' and click 'Done'")
+                raise RuntimeError("fujielab-output multi-output device is required but not found")
+            
+            # Check if fujielab-output is set as the default output device
+            current_output = subprocess.run(["SwitchAudioSource", "-c", "-t", "output"],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout.strip()
+            
+            if current_output != "fujielab-output":
+                print("Warning: The multi-output device 'fujielab-output' is not set as the default output device.")
+                print("The application may not work correctly unless you set 'fujielab-output' as the output device for applications.")
+                self._debug_print(f"Current output device: {current_output}, Expected: fujielab-output")
+        
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to check audio devices: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Error occurred while checking fujielab-output device: {e}")
 
         # The device is now open and ready to receive data
         # The stream can be started even if no audio is being played
@@ -317,32 +329,47 @@ class OutputCaptureMac(OutputCapture):
                 if dev['max_input_channels'] > 0:
                     self._debug_print(f"  {i}: {dev['name']} (Input channels: {dev['max_input_channels']})")
 
-            # Find BlackHole 2ch device ID (more strict search)
+            # Find fujielab-output device ID for recording (BlackHole 2ch component)
+            fujielab_id = None
             blackhole_id = None
             blackhole_candidates = []
 
             for i, dev in enumerate(devices):
                 # Check with multiple conditions
                 if dev['max_input_channels'] > 0:  # Input devices only
-                    if 'BlackHole 2ch' == dev['name']:  # Exact match first
-                        blackhole_id = i
+                    if 'fujielab-output' == dev['name']:  # Exact match for fujielab-output
+                        fujielab_id = i
                         break
+                    elif 'BlackHole 2ch' == dev['name']:  # Exact match for BlackHole 2ch
+                        blackhole_id = i
                     elif 'BlackHole' in dev['name']:  # Partial match as a candidate
                         blackhole_candidates.append((i, dev['name']))
 
-            # If no exact match is found, select from candidates
-            if blackhole_id is None and blackhole_candidates:
-                blackhole_id = blackhole_candidates[0][0]  # Use the first candidate
-                print(f"Warning: Exact match for BlackHole 2ch not found, using {blackhole_candidates[0][1]}")
+            # Priority: fujielab-output > BlackHole 2ch > BlackHole candidates
+            target_device_id = None
+            target_device_name = None
+            
+            if fujielab_id is not None:
+                target_device_id = fujielab_id
+                target_device_name = "fujielab-output"
+                self._debug_print(f"Using fujielab-output device (Device ID: {fujielab_id})")
+            elif blackhole_id is not None:
+                target_device_id = blackhole_id
+                target_device_name = "BlackHole 2ch"
+                self._debug_print(f"Using BlackHole 2ch device (Device ID: {blackhole_id})")
+            elif blackhole_candidates:
+                target_device_id = blackhole_candidates[0][0]
+                target_device_name = blackhole_candidates[0][1]
+                print(f"Warning: fujielab-output not found in input devices, using {target_device_name}")
 
-            if blackhole_id is None:
-                print("Error: BlackHole 2ch device not found.")
-                print("Please ensure BlackHole is installed.")
-                print("You can install it with the following command:")
+            if target_device_id is None:
+                print("Error: Neither fujielab-output nor BlackHole 2ch device found for recording.")
+                print("Please ensure BlackHole is installed and fujielab-output is properly configured.")
+                print("You can install BlackHole with the following command:")
                 print("  brew install blackhole-2ch")
                 return False
 
-            self._debug_print(f"Detected BlackHole 2ch device (Device ID: {blackhole_id})")
+            self._debug_print(f"Selected recording device: {target_device_name} (Device ID: {target_device_id})")
 
             # Debug output for stream settings
             self._debug_print(f"Stream settings: Sample rate={self._sample_rate}, Channels={self._channels}, Block size={self._blocksize}")
@@ -368,9 +395,9 @@ class OutputCaptureMac(OutputCapture):
                     # Reset error state
                     self._callback_error = None
 
-                    # Open stream to record from BlackHole 2ch (using callback function)
+                    # Open stream to record from the selected device (fujielab-output or BlackHole 2ch)
                     self._capture_stream = sd.InputStream(
-                        device=blackhole_id,
+                        device=target_device_id,
                         samplerate=self._sample_rate,
                         channels=self._channels,
                         blocksize=self._blocksize,
@@ -380,7 +407,7 @@ class OutputCaptureMac(OutputCapture):
                         extra_settings=None  # Use system default settings (more stable)
                     )
                     self._capture_stream.start()
-                    self._debug_print(f"Started recording from BlackHole 2ch (rate={self._sample_rate}Hz, channels={self._channels}, blocksize={self._blocksize}, using callback)")
+                    self._debug_print(f"Started recording from {target_device_name} (rate={self._sample_rate}Hz, channels={self._channels}, blocksize={self._blocksize}, using callback)")
                     self._time_offset = time.time() - self._capture_stream.time  # Calculate time offset for accurate timestamps
 
                     # Wait for the recording stream to stabilize (a bit longer)
@@ -531,8 +558,8 @@ class OutputCaptureMac(OutputCapture):
         # Reset initialization state
         self._stream_initialized = False
 
-        # Restore the original output device
-        self.restore_original_output()
+        # Restore the original output device - TEMPORARILY DISABLED
+        # self.restore_original_output()
 
     def _audio_callback(self, indata, frames, time_info, status):
         """

@@ -113,7 +113,7 @@ class SoundcardInputCaptureBase(InputCaptureBase):
                                 if self._audio_queue.full():
                                     self._audio_queue.get_nowait()
                                 self._audio_queue.put_nowait(audio_data)
-                                self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s")
+                                # self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s")
                             except queue.Full:
                                 pass  # Ignore if queue is still full
 

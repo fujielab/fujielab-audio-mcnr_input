@@ -562,6 +562,12 @@ class InputStream:
 
 
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Test InputStream with audio capture")
+    parser.add_argument('--debug', action='store_true', help="Enable debug messages")
+    args = parser.parse_args()
+    
     audio_buff = None
     def callback(indata, frames, time_info, status):
         global audio_buff
@@ -580,7 +586,7 @@ if __name__ == "__main__":
             CaptureConfig(capture_type='Output', device_name=None, channels=2), # , offset=0.05),
         ],
         callback=callback,
-        debug=True  # デバッグメッセージを無効にする（必要に応じて True に変更）
+        debug=args.debug  # デバッグメッセージを無効にする（必要に応じて True に変更）
     )
 
     try:

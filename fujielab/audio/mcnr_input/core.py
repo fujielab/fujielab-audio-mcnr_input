@@ -3,6 +3,8 @@ import time
 import queue
 import numpy as np
 import platform
+import sounddevice as sd
+import scipy.signal
 from dataclasses import dataclass
 from typing import Optional, List, Union, Dict, Any
 from ._backend.data import AudioData
@@ -132,6 +134,13 @@ class InputStream:
 
         # List of capture instances
         self.capture_instances = []
+
+        # Synchronization-related attributes
+        self._sync_enabled = False
+        self._sync_offsets = [0.0] * len(self.captures)  # Time offsets for synchronization (in seconds)
+        self._sync_lock = threading.Lock()
+        self._sync_buffers = [[] for _ in range(len(self.captures))]  # Buffers for storing sync data
+        self._sync_buffer_size = int(self.samplerate * 2.0)  # 2 seconds buffer for sync detection
 
     def _debug_print(self, message):
         """
@@ -430,6 +439,15 @@ class InputStream:
                     if data is not None:
                         captured_data.append(data.data)
                         timestamps.append(data.time + self.captures[i].offset)
+                        
+                        # Store data for sync analysis if sync is being performed
+                        with self._sync_lock:
+                            if len(self._sync_buffers[i]) < self._sync_buffer_size // self.blocksize:
+                                self._sync_buffers[i].append(data.data.copy())
+                            else:
+                                # Remove oldest data to maintain buffer size
+                                self._sync_buffers[i].pop(0)
+                                self._sync_buffers[i].append(data.data.copy())
                     else:
                         self._debug_print("No data returned from capture instance.")
                 except Exception as e:
@@ -448,6 +466,15 @@ class InputStream:
             # Synchronization logic
             if not sync_initialized or overflow_detected:
                 self._debug_print("Performing synchronization...")
+                
+                # Apply chirp-based sync offsets if available
+                with self._sync_lock:
+                    if self._sync_enabled:
+                        self._debug_print("Using chirp-based synchronization offsets")
+                        # Apply sync offsets to timestamps
+                        for i in range(len(timestamps)):
+                            timestamps[i] -= self._sync_offsets[i]
+                
                 max_time = max(timestamps)
                 base_index = timestamps.index(max_time)  # Use the latest timestamp as the base
 
@@ -562,12 +589,200 @@ class InputStream:
 
         self._debug_print("Stream processing thread stopped")
 
+    def synchronize_with_chirp(self, duration=1.0, f0=1000, f1=2000, amplitude=0.3):
+        """
+        Synchronize multiple capture devices using a chirp signal
+        
+        チャープ信号を使用して複数のキャプチャデバイスを同期する
+        
+        Parameters:
+        -----------
+        duration : float, optional
+            Duration of the chirp signal in seconds (default: 1.0)
+            チャープ信号の長さ（秒）（デフォルト: 1.0）
+        f0 : float, optional
+            Starting frequency of the chirp in Hz (default: 1000)
+            チャープの開始周波数（Hz）（デフォルト: 1000）
+        f1 : float, optional
+            Ending frequency of the chirp in Hz (default: 2000)
+            チャープの終了周波数（Hz）（デフォルト: 2000）
+        amplitude : float, optional
+            Amplitude of the chirp signal (0.0-1.0) (default: 0.3)
+            チャープ信号の振幅（0.0-1.0）（デフォルト: 0.3）
+            
+        Returns:
+        --------
+        bool
+            True if synchronization was successful, False otherwise
+            同期が成功した場合True、そうでなければFalse
+        """
+        if not self.running:
+            self._debug_print("Stream must be running to perform synchronization")
+            return False
+            
+        if len(self.capture_instances) < 2:
+            self._debug_print("At least 2 capture devices are required for synchronization")
+            return False
+            
+        self._debug_print("Starting chirp synchronization...")
+        
+        try:
+            # Generate chirp signal
+            chirp_signal = self._generate_chirp_signal(duration, f0, f1, amplitude)
+            
+            # Clear sync buffers
+            with self._sync_lock:
+                self._sync_buffers = [[] for _ in range(len(self.capture_instances))]
+            
+            # Start collecting sync data
+            sync_start_time = time.time()
+            
+            # Play chirp signal
+            self._debug_print(f"Playing chirp signal (duration: {duration}s, {f0}-{f1}Hz)")
+            self._play_chirp_signal(chirp_signal)
+            
+            # Wait for chirp to complete and collect additional data
+            collection_time = duration + 0.5  # Extra time for signal propagation
+            time.sleep(collection_time)
+            
+            # Analyze collected data to find chirp onsets
+            onset_times = self._detect_chirp_onsets(chirp_signal, f0, f1)
+            
+            if len(onset_times) < len(self.capture_instances):
+                self._debug_print(f"Could not detect chirp in all devices. Detected in {len(onset_times)}/{len(self.capture_instances)} devices")
+                return False
+            
+            # Calculate synchronization offsets
+            reference_time = min(onset_times)  # Use earliest detection as reference
+            with self._sync_lock:
+                self._sync_offsets = [onset_time - reference_time for onset_time in onset_times]
+                self._sync_enabled = True
+            
+            self._debug_print("Synchronization offsets calculated:")
+            for i, offset in enumerate(self._sync_offsets):
+                self._debug_print(f"  Device {i}: {offset*1000:.2f}ms")
+            
+            self._debug_print("Chirp synchronization completed successfully")
+            return True
+            
+        except Exception as e:
+            self._debug_print(f"Error during chirp synchronization: {e}")
+            return False
+    
+    def _generate_chirp_signal(self, duration, f0, f1, amplitude):
+        """
+        Generate a linear chirp signal
+        
+        線形チャープ信号を生成
+        """
+        t = np.linspace(0, duration, int(self.samplerate * duration), False)
+        chirp = amplitude * scipy.signal.chirp(t, f0, duration, f1, method='linear')
+        
+        # Add brief silence at the beginning and end for clear onset detection
+        silence_samples = int(0.1 * self.samplerate)  # 100ms silence
+        silence = np.zeros(silence_samples)
+        
+        full_signal = np.concatenate([silence, chirp, silence])
+        return full_signal
+    
+    def _play_chirp_signal(self, chirp_signal):
+        """
+        Play the chirp signal through the default output device
+        
+        デフォルト出力デバイスからチャープ信号を再生
+        """
+        try:
+            # Play the signal (blocking call)
+            sd.play(chirp_signal, self.samplerate, blocking=True)
+        except Exception as e:
+            self._debug_print(f"Error playing chirp signal: {e}")
+            raise
+    
+    def _detect_chirp_onsets(self, reference_chirp, f0, f1):
+        """
+        Detect chirp onsets in captured audio data using cross-correlation
+        
+        相互相関を使用してキャプチャされた音声データからチャープのオンセットを検出
+        """
+        onset_times = []
+        
+        with self._sync_lock:
+            sync_buffers = [buffer.copy() for buffer in self._sync_buffers]
+        
+        # Prepare reference signal for correlation (just the chirp part without silence)
+        ref_start = int(0.1 * self.samplerate)  # Skip initial silence
+        ref_end = ref_start + len(reference_chirp) - 2 * ref_start
+        reference = reference_chirp[ref_start:ref_end]
+        
+        for i, buffer_data in enumerate(sync_buffers):
+            if not buffer_data:
+                self._debug_print(f"No sync data collected for device {i}")
+                onset_times.append(0.0)
+                continue
+            
+            # Concatenate buffer data
+            audio_data = np.concatenate(buffer_data)
+            
+            # Convert to mono if stereo
+            if len(audio_data.shape) > 1 and audio_data.shape[1] > 1:
+                audio_data = np.mean(audio_data, axis=1)
+            
+            try:
+                # Cross-correlation to find chirp
+                correlation = scipy.signal.correlate(audio_data, reference, mode='valid')
+                
+                # Find peak correlation
+                peak_idx = np.argmax(np.abs(correlation))
+                
+                # Convert sample index to time
+                onset_time = peak_idx / self.samplerate
+                onset_times.append(onset_time)
+                
+                self._debug_print(f"Device {i}: Chirp detected at {onset_time:.3f}s (correlation peak: {correlation[peak_idx]:.3f})")
+                
+            except Exception as e:
+                self._debug_print(f"Error detecting onset for device {i}: {e}")
+                onset_times.append(0.0)
+        
+        return onset_times
+    
+    def get_sync_offsets(self):
+        """
+        Get current synchronization offsets
+        
+        現在の同期オフセットを取得
+        
+        Returns:
+        --------
+        list of float
+            Synchronization offsets in seconds for each capture device
+            各キャプチャデバイスの同期オフセット（秒）
+        """
+        with self._sync_lock:
+            return self._sync_offsets.copy()
+    
+    def is_synchronized(self):
+        """
+        Check if devices are synchronized
+        
+        デバイスが同期されているかチェック
+        
+        Returns:
+        --------
+        bool
+            True if synchronized, False otherwise
+            同期されている場合True、そうでなければFalse
+        """
+        with self._sync_lock:
+            return self._sync_enabled
+
 
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Test InputStream with audio capture")
     parser.add_argument('--debug', action='store_true', help="Enable debug messages")
+    parser.add_argument('--sync', action='store_true', help="Test chirp synchronization")
     args = parser.parse_args()
     
     audio_buff = None
@@ -594,6 +809,18 @@ if __name__ == "__main__":
     try:
         input_stream.start()
         print("Stream started successfully.")
+        
+        if args.sync:
+            print("Testing chirp synchronization...")
+            time.sleep(1)  # Wait for stream to stabilize
+            
+            success = input_stream.synchronize_with_chirp(duration=1.0, f0=1000, f1=2000, amplitude=0.3)
+            if success:
+                print("Synchronization successful!")
+                offsets = input_stream.get_sync_offsets()
+                print("Sync offsets:", [f"{offset*1000:.2f}ms" for offset in offsets])
+            else:
+                print("Synchronization failed!")
 
         # Simulate some processing
         time.sleep(5)

@@ -40,6 +40,7 @@ dependencies = [
     "sounddevice>=0.4.0",
     "soundfile>=0.10.0",
     "soundcard>=0.4.0",
+    "pywin32>=227; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

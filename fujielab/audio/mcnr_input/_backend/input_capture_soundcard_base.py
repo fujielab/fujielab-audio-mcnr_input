@@ -74,6 +74,29 @@ class SoundcardInputCaptureBase(InputCaptureBase):
 
         soundcardを使用した連続オーディオ録音のワーカースレッド
         """
+        import platform
+        
+        # Initialize COM for Windows platform
+        com_initialized = False
+        if platform.system() == "Windows":
+            try:
+                import pythoncom
+                pythoncom.CoInitialize()
+                com_initialized = True
+                self._debug_print("COM initialized for recording thread")
+            except ImportError:
+                self._debug_print("Warning: pythoncom not available, COM initialization skipped")
+                # Try alternative COM initialization
+                try:
+                    import comtypes # type: ignore
+                    comtypes.CoInitialize()
+                    com_initialized = True
+                    self._debug_print("COM initialized using comtypes")
+                except ImportError:
+                    self._debug_print("Warning: comtypes also not available")
+            except Exception as e:
+                self._debug_print(f"Warning: COM initialization failed: {e}")
+        
         try:
             self._debug_print(f"Starting recording with device: {self._microphone_device.name}")
             self._debug_print(f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}")
@@ -125,6 +148,22 @@ class SoundcardInputCaptureBase(InputCaptureBase):
         except Exception as e:
             self._debug_print(f"Recording worker error: {e}")
             self._stream_initialized = False
+        finally:
+            # Cleanup COM if it was initialized
+            if platform.system() == "Windows" and com_initialized:
+                try:
+                    import pythoncom
+                    pythoncom.CoUninitialize()
+                    self._debug_print("COM uninitialized for recording thread")
+                except ImportError:
+                    try:
+                        import comtypes # type: ignore
+                        comtypes.CoUninitialize()
+                        self._debug_print("COM uninitialized using comtypes")
+                    except ImportError:
+                        pass
+                except Exception as e:
+                    self._debug_print(f"Warning: COM cleanup failed: {e}")
 
     @staticmethod
     def list_audio_devices_common(debug=False):

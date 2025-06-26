@@ -7,7 +7,7 @@ name = "fujielab-audio-mcnr_input"
 version = "0.1.0"
 description = "Multi channel noise reduction based echo cancelling audio input stream"
 readme = "README.md"
-license = "MIT"
+license = { text = "MIT" }
 authors = [
     {name = "Shinya Fujie"},
 ]

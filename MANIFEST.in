@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include pyproject.toml
+recursive-include fujielab *.py
+recursive-include fujielab *.typed
+recursive-include examples *.py
+exclude *.wav
+exclude output.wav
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store

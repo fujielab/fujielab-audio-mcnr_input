@@ -305,6 +305,32 @@ class InputStream:
         """
         return self.active()
 
+    def read(self, block=True, timeout=None):
+        """
+        Read processed audio data from the internal queue.
+
+        内部キューから処理済みオーディオデータを取得する
+
+        Parameters
+        ----------
+        block : bool, optional
+            Whether to block until data is available (default: True)
+            データが利用可能になるまで待機するかどうか（デフォルト: True）
+        timeout : float or None, optional
+            Maximum time to wait in seconds (default: None)
+            待機する最大時間（秒）（デフォルト: None）
+
+        Returns
+        -------
+        np.ndarray or None
+            Retrieved audio data or ``None`` if the queue was empty
+            取得したオーディオデータ。キューが空の場合は ``None``
+        """
+        try:
+            return self.data_queue.get(block=block, timeout=timeout)
+        except queue.Empty:
+            return None
+
     def _start_stream(self):
         """内部実装: ストリームを開始する"""
         import platform

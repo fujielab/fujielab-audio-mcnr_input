@@ -220,7 +220,7 @@ class InputCapture:
                         except:
                             pass
                     self._audio_queue.put_nowait(audio_data)
-                    self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s (Overflow: {is_overflow})")
+                    # self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s (Overflow: {is_overflow})")
                 except:
                     # キューへの追加に失敗した場合
                     pass

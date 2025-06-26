@@ -1,11 +1,11 @@
 """
 Audio Input Capture Module for Mac
 
-This module provides classes for capturing audio from various input sources (e.g., microphones) on Mac using sounddevice.
+This module provides classes for capturing audio from various input sources (e.g., microphones) on Mac using soundcard.
 
 Mac用入力オーディオキャプチャモジュール
 
-このモジュールは、sounddeviceを使用してMac上で各種オーディオ入力（マイク等）からのオーディオをキャプチャするためのクラスを提供します。
+このモジュールは、soundcardを使用してMac上で各種オーディオ入力（マイク等）からのオーディオをキャプチャするためのクラスを提供します。
 """
 import numpy as np
 import queue
@@ -15,22 +15,22 @@ from .data import AudioData
 from .input_capture_base import InputCaptureBase
 
 try:
-    import sounddevice as sd
-    SOUNDDEVICE_AVAILABLE = True
+    import soundcard as sc
+    SOUNDCARD_AVAILABLE = True
 except ImportError:
-    SOUNDDEVICE_AVAILABLE = False
-    sd = None
+    SOUNDCARD_AVAILABLE = False
+    sc = None
 
 
 class InputCaptureMac(InputCaptureBase):
     """
     Audio Input Capture Class for Mac
 
-    This class provides an interface for capturing audio from input sources on Mac using sounddevice library.
+    This class provides an interface for capturing audio from input sources on Mac using soundcard library.
 
     Mac用入力オーディオキャプチャクラス
 
-    このクラスは、sounddeviceライブラリを使用してMac上でオーディオ入力からのキャプチャ機能を提供します。
+    このクラスは、soundcardライブラリを使用してMac上でオーディオ入力からのキャプチャ機能を提供します。
     """
 
     def __init__(self, sample_rate=16000, channels=1, blocksize=1024, debug=False):
@@ -54,80 +54,81 @@ class InputCaptureMac(InputCaptureBase):
             Enable debug messages (default: False)
             デバッグメッセージを有効にする (デフォルト: False)
         """
-        if not SOUNDDEVICE_AVAILABLE:
-            raise RuntimeError("sounddevice library is not available. Please install sounddevice for Mac input capture.")
+        if not SOUNDCARD_AVAILABLE:
+            raise RuntimeError("soundcard library is not available. Please install soundcard for Mac input capture.")
             
         # Call parent constructor
         super().__init__(sample_rate, channels, blocksize, debug)
 
         # Additional Mac-specific variables
-        self._callback_error = None
-        self._callback_lock = threading.Lock()
+        self._recording_thread = None
+        self._stop_recording = threading.Event()
+        self._microphone_device = None
 
-        # sounddevice specific variables
-        self._stream = None
-        self._time_offset = 0.0
-
-        self._debug_print("Mac InputCapture initialized with sounddevice backend")
+        self._debug_print("Mac InputCapture initialized with soundcard backend")
 
     @property
     def time(self):
         """現在の時間（time.time()）"""
         return time.time()
 
-    def _audio_callback(self, indata, frames, time_info, status):
+    def _recording_worker(self):
         """
-        sounddevice callback function (for Mac)
+        Worker thread for continuous audio recording using soundcard
 
-        Processes captured audio data and adds it to the queue.
-
-        sounddeviceのコールバック関数（Mac用）
-
-        キャプチャしたオーディオデータを処理してキューに追加する
-
-        Parameters:
-        -----------
-        indata : numpy.ndarray
-            入力オーディオデータ（フレーム数 x チャンネル数）
-        frames : int
-            現在のブロック内のフレーム数
-        time_info : PaStreamCallbackTimeInfo Struct
-            タイミング情報を含む構造体
-        status : sounddevice.CallbackFlags
-            エラーなどを示すフラグ
+        soundcardを使用した連続オーディオ録音のワーカースレッド
         """
         try:
-            with self._callback_lock:
-                # エラーの検出
-                is_overflow = False
-                if status and status.input_overflow:
-                    self._debug_print("Microphone input overflow detected")
-                    is_overflow = True
+            self._debug_print(f"Starting recording with device: {self._microphone_device.name}")
+            self._debug_print(f"Block size: {self._blocksize}, Sample rate: {self._sample_rate}")
 
-                # Use time.time() for timestamp (as requested)
-                current_time = time.time()
+            # Open the recorder once and keep it open
+            with self._microphone_device.recorder(
+                samplerate=self._sample_rate,
+                channels=self._channels
+            ) as recorder:
 
-                # AudioDataオブジェクトとして時間情報付きでキューに保存
-                audio_data = AudioData(
-                    data=indata.copy(),
-                    time=current_time,
-                    overflowed=is_overflow
-                )
+                while not self._stop_recording.is_set():
+                    try:
+                        # Record one block of audio
+                        data = recorder.record(numframes=self._blocksize)
 
-                # キューがいっぱいの場合は古いデータを捨てる
-                try:
-                    if self._audio_queue.full():
-                        try:
-                            self._audio_queue.get_nowait()
-                        except:
-                            pass
-                    self._audio_queue.put_nowait(audio_data)
-                    self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s (Overflow: {is_overflow})")
-                except:
-                    # キューへの追加に失敗した場合
-                    pass
+                        if data.size > 0:
+                            # Ensure data has the right shape
+                            if len(data.shape) == 1:
+                                # Reshape 1D array to (samples, 1)
+                                data = data.reshape(-1, 1)
+                            elif data.shape[1] > self._channels:
+                                # If more channels than needed, take the first N channels
+                                data = data[:, :self._channels]
+                            elif data.shape[1] < self._channels and self._channels == 2:
+                                # If mono but stereo requested, duplicate channel
+                                data = np.column_stack([data, data])
+
+                            # Create AudioData object
+                            audio_data = AudioData(
+                                data=data.astype(np.float32),
+                                time=time.time(),
+                                overflowed=False
+                            )
+
+                            # Add to queue (discard old data if queue is full)
+                            try:
+                                if self._audio_queue.full():
+                                    self._audio_queue.get_nowait()
+                                self._audio_queue.put_nowait(audio_data)
+                                # self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s")
+                            except queue.Full:
+                                pass  # Ignore if queue is still full
+
+                    except Exception as record_error:
+                        if not self._stop_recording.is_set():
+                            self._debug_print(f"Recording error: {record_error}")
+                            time.sleep(0.1)  # Brief pause before retrying
+
         except Exception as e:
-            self._debug_print(f"Microphone callback error: {e}")
+            self._debug_print(f"Recording worker error: {e}")
+            self._stream_initialized = False
 
     @staticmethod
     def list_audio_devices(debug=False):
@@ -154,27 +155,21 @@ class InputCaptureMac(InputCaptureBase):
                 print(message)
 
         try:
-            if not SOUNDDEVICE_AVAILABLE:
-                _debug_print_local("sounddevice library is not available")
+            if not SOUNDCARD_AVAILABLE:
+                _debug_print_local("soundcard library is not available")
                 return False
                 
-            # sounddevice based listing for Mac
-            _debug_print_local("\nAvailable audio input devices (sounddevice):")
-            devices = sd.query_devices()
-            host_apis = sd.query_hostapis()
-            input_devices = []
+            # soundcard based listing for Mac
+            _debug_print_local("\nAvailable audio input devices (soundcard):")
+            microphones = sc.all_microphones()
 
-            for i, dev in enumerate(devices):
-                if dev['max_input_channels'] > 0:
-                    host_api_name = host_apis[dev['hostapi']]['name']
-                    _debug_print_local(f"  {i}: {dev['name']} (入力チャンネル: {dev['max_input_channels']}, Host API: {host_api_name})")
-                    input_devices.append(i)
+            for i, mic in enumerate(microphones):
+                _debug_print_local(f"  {i}: {mic.name}")
 
             # デフォルトの入力デバイスを取得
             try:
-                default_device = sd.query_devices(kind='input')
-                default_index = sd.default.device[0]
-                _debug_print_local(f"Default input device: {default_device['name']} (Index {default_index})")
+                default_mic = sc.default_microphone()
+                _debug_print_local(f"Default input device: {default_mic.name}")
             except Exception as e:
                 _debug_print_local(f"デフォルトデバイスの取得エラー: {e}")
 
@@ -219,9 +214,6 @@ class InputCaptureMac(InputCaptureBase):
         if blocksize is not None:
             self._blocksize = blocksize
 
-        # マイクは通常1チャンネル（モノラル）のみサポート
-        mic_channels = 1
-
         # キューをクリア
         while not self._audio_queue.empty():
             try:
@@ -229,81 +221,67 @@ class InputCaptureMac(InputCaptureBase):
             except:
                 break
 
-        return self._start_sounddevice_capture(device_name, mic_channels)
+        return self._start_soundcard_capture(device_name)
 
-    def _start_sounddevice_capture(self, device_name, mic_channels):
+    def _start_soundcard_capture(self, device_name):
         """
-        Start audio capture using sounddevice (Mac)
+        Start audio capture using soundcard (Mac)
         
-        sounddeviceを使用してオーディオキャプチャを開始（Mac）
+        soundcardを使用してオーディオキャプチャを開始（Mac）
         """
         try:
             # デバイス情報の取得
-            devices = sd.query_devices()
-            input_devices = []
+            microphones = sc.all_microphones()
 
-            for i, dev in enumerate(devices):
-                if dev['max_input_channels'] > 0:
-                    input_devices.append(i)
+            if not microphones:
+                self._debug_print("Error: No microphones found")
+                self._stream_initialized = False
+                return False
 
             # 指定されたデバイス名またはインデックスを探す
-            device_index = None
+            microphone_device = None
             if device_name is not None:
                 # 数値インデックスとして解釈を試みる
                 if isinstance(device_name, (int, str)) and str(device_name).isdigit():
                     idx = int(device_name)
-                    if 0 <= idx < len(devices) and devices[idx]['max_input_channels'] > 0:
-                        device_index = idx
+                    if 0 <= idx < len(microphones):
+                        microphone_device = microphones[idx]
                 # デバイス名として検索
                 else:
-                    for i, dev in enumerate(devices):
-                        if dev['max_input_channels'] > 0 and device_name.lower() in dev['name'].lower():
-                            device_index = i
+                    for mic in microphones:
+                        if device_name.lower() in mic.name.lower():
+                            microphone_device = mic
                             break
 
             # デバイスが見つからない場合はデフォルトを使用
-            if device_index is None:
+            if microphone_device is None:
                 try:
-                    default_device = sd.query_devices(kind='input')
-                    default_index = sd.default.device[0]
-                    if default_index in input_devices:
-                        device_index = default_index
-                    else:
-                        device_index = input_devices[0] if input_devices else None
+                    microphone_device = sc.default_microphone()
                 except Exception as e:
                     self._debug_print(f"デフォルトデバイスの取得エラー: {e}")
-                    device_index = input_devices[0] if input_devices else None
+                    microphone_device = microphones[0] if microphones else None
 
             # 有効なデバイスが見つからない場合
-            if device_index is None:
+            if microphone_device is None:
                 self._debug_print("Error: No valid audio input device found")
                 self._stream_initialized = False
                 return False
 
-            self._debug_print(f"Using audio input device: {devices[device_index]['name']} (Index {device_index})")
+            self._debug_print(f"Using audio input device: {microphone_device.name}")
+            self._microphone_device = microphone_device
 
-            # 既存のストリームをクリーンアップ
-            if self._stream is not None:
-                try:
-                    self._stream.stop()
-                    self._stream.close()
-                    self._debug_print("Cleaned up existing microphone stream")
-                except Exception as e:
-                    self._debug_print(f"Stream cleanup error: {e}")
+            # 既存の録音スレッドを停止
+            if self._recording_thread is not None and self._recording_thread.is_alive():
+                self._stop_recording.set()
+                self._recording_thread.join(timeout=2.0)
+                self._debug_print("Stopped existing recording thread")
 
-            # ストリーム作成とエラーハンドリング
-            self._stream = sd.InputStream(
-                samplerate=self._sample_rate,
-                channels=mic_channels,
-                blocksize=self._blocksize,
-                callback=self._audio_callback,
-                device=device_index
-            )
-            self._stream.start()
-            self._debug_print("Microphone input stream started successfully")
-
-            # time.time() と InputStream.time のオフセットを計算（使用しないが互換性のため）
-            self._time_offset = time.time() - self._stream.time
+            # 新しい録音スレッドを開始
+            self._stop_recording.clear()
+            self._recording_thread = threading.Thread(target=self._recording_worker, daemon=True)
+            self._recording_thread.start()
+            
+            self._debug_print("Microphone input thread started successfully")
 
             # テストデータ取得を試行
             time.sleep(0.3)  # 初期化待機
@@ -317,7 +295,7 @@ class InputCaptureMac(InputCaptureBase):
 
             return True
         except Exception as e:
-            self._debug_print(f"Error creating microphone input stream: {e}")
+            self._debug_print(f"Error creating microphone input capture: {e}")
             self._stream_initialized = False
             return False
 
@@ -368,26 +346,27 @@ class InputCaptureMac(InputCaptureBase):
             True if stopped successfully.
             停止に成功した場合はTrue
         """
-        return self._stop_sounddevice_capture()
+        return self._stop_soundcard_capture()
 
-    def _stop_sounddevice_capture(self):
+    def _stop_soundcard_capture(self):
         """
-        Stop sounddevice capture
+        Stop soundcard capture
         
-        sounddeviceキャプチャを停止
+        soundcardキャプチャを停止
         """
-        if self._stream is not None:
-            try:
-                self._stream.stop()
-                self._stream.close()
-                self._stream = None
-                self._stream_initialized = False
-                self._debug_print("Input stream stopped")
-                return True
-            except Exception as e:
-                self._debug_print(f"入力ストリーム停止エラー: {e}")
-                return False
-        return True  # 既に停止している場合も成功とみなす
+        try:
+            # 録音スレッドを停止
+            if self._recording_thread is not None and self._recording_thread.is_alive():
+                self._stop_recording.set()
+                self._recording_thread.join(timeout=2.0)
+                self._recording_thread = None
+                self._debug_print("Recording thread stopped")
+            
+            self._stream_initialized = False
+            return True
+        except Exception as e:
+            self._debug_print(f"入力ストリーム停止エラー: {e}")
+            return False
 
 
 # モジュールレベルでの関数

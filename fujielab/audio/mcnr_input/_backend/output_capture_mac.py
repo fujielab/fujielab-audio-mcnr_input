@@ -381,6 +381,7 @@ class OutputCaptureMac(OutputCapture):
                     )
                     self._capture_stream.start()
                     self._debug_print(f"Started recording from BlackHole 2ch (rate={self._sample_rate}Hz, channels={self._channels}, blocksize={self._blocksize}, using callback)")
+                    self._time_offset = time.time() - self._capture_stream.time  # Calculate time offset for accurate timestamps
 
                     # Wait for the recording stream to stabilize (a bit longer)
                     time.sleep(0.8)
@@ -439,8 +440,6 @@ class OutputCaptureMac(OutputCapture):
             traceback.print_exc()
             return False
         finally:
-            if self._stream_initialized:
-                self._time_offset = time.time() - self._capture_stream.time  # Calculate time offset from stream start
             # If the stream is not initialized, reset the state
             if not self._stream_initialized:
                 self._capture_stream = None

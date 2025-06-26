@@ -104,7 +104,7 @@ class InputStream:
         self.extra_settings = extra_settings or {}
         self.debug = debug
         self.running = False
-        
+
         from .process import MultiChannelNoiseReductionProcessor
         self.processor = MultiChannelNoiseReductionProcessor()
 
@@ -439,6 +439,9 @@ class InputStream:
                 # No data received, wait briefly before retrying
                 time.sleep(0.01)
                 continue
+            
+            for i, data in enumerate(captured_data):
+                self._debug_print(f"Capture {i} data: {data.shape} at time {timestamps[i]:.3f}s")
 
             # Synchronization logic
             if not sync_initialized or overflow_detected:
@@ -453,12 +456,13 @@ class InputStream:
                     while timestamps[i] < max_time:
                         try:
                             data = capture.read_audio_capture()
-                            self._debug_print(f"Capture {i} data: {data.data.shape} at time {data.time:.3f}s")
+                            # self._debug_print(f"Capture {i} data: {data.data.shape} at time {data.time:.3f}s")
                             if data is not None:
                                 timestamps[i] = data.time + self.captures[i].offset
                                 captured_data[i] = data.data
                             else:
                                 break
+                            self._debug_print(f"Aligned Capture {i} data: {captured_data[i].shape} at time {timestamps[i]:.3f}s")
                         except Exception as e:
                             self._debug_print(f"Error during synchronization: {e}")
                             break
@@ -491,8 +495,36 @@ class InputStream:
                 # Store the current block for the next iteration
                 previous_blocks[i] = data
 
+            # Validate data sizes before combining
+            valid_data = []
+            target_size = self.blocksize
+
+            for i, data in enumerate(captured_data):
+                if data.size == 0:
+                    self._debug_print(f"Warning: Capture {i} returned empty data, skipping this iteration")
+                    continue
+
+                # Ensure data has correct shape and size
+                if len(data.shape) == 1:
+                    data = data.reshape(-1, 1)
+
+                # Pad or truncate to target size
+                if data.shape[0] < target_size:
+                    padding = np.zeros((target_size - data.shape[0], data.shape[1]), dtype=data.dtype)
+                    data = np.vstack([data, padding])
+                elif data.shape[0] > target_size:
+                    data = data[:target_size, :]
+
+                valid_data.append(data)
+
+            # Skip this iteration if no valid data
+            if not valid_data:
+                self._debug_print("No valid data available, skipping this iteration")
+                time.sleep(0.01)
+                continue
+
             # Combine data from all capture instances
-            combined_data = np.hstack(captured_data) if len(captured_data) > 1 else captured_data[0]
+            combined_data = np.hstack(valid_data) if len(valid_data) > 1 else valid_data[0]
 
             # for i, data in enumerate(captured_data):
             #     print(f"Capture {i}: {data.shape} at time {timestamps[i]:.3f} (offset={offsets[i]/self.samplerate:.3f}s, {offsets[i]})")
@@ -540,12 +572,11 @@ if __name__ == "__main__":
         if status.INPUT_OVERFLOW:
             print("Input overflow detected!")
 
-
     input_stream = InputStream(
         samplerate=16000,
         blocksize=512,
         captures=[
-            CaptureConfig(capture_type='Input', device_name=None, channels=2),
+            CaptureConfig(capture_type='Input', device_name=None, channels=1),
             CaptureConfig(capture_type='Output', device_name=None, channels=2), # , offset=0.05),
         ],
         callback=callback,

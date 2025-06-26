@@ -105,7 +105,7 @@ class InputCaptureWin(InputCaptureBase):
                                     except queue.Empty:
                                         pass
                                 self._audio_queue.put_nowait(audio_data)
-                                self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s")
+                                # self._debug_print(f"Audio data added to queue: {audio_data.time:.3f}s")
                             except queue.Full:
                                 pass  # Queue is still full, skip this data
                                 

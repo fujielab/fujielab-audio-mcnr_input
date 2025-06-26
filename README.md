@@ -72,6 +72,9 @@ On Windows, the library uses the default audio drivers. No additional setup is r
 pip install fujielab-audio-mcnr_input
 ```
 
+This command installs the library along with its Python dependencies such as
+NumPy, **SciPy (>=1.0)**, SoundDevice, SoundFile, and SoundCard.
+
 ## Quick Start
 
 ### Basic Usage

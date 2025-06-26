@@ -11,9 +11,6 @@ Platform-specific implementations are automatically selected.
 """
 import platform
 
-# Import base class for type hints
-from .input_capture_base import InputCaptureBase
-
 # Import platform-specific InputCapture classes
 if platform.system() == "Darwin":
     from .input_capture_mac import InputCaptureMac as InputCapture
@@ -23,4 +20,4 @@ else:
     from .input_capture_win import create_input_capture_instance, list_devices
 
 # Re-export the platform-appropriate class and functions for backward compatibility
-__all__ = ['InputCapture', 'InputCaptureBase', 'create_input_capture_instance', 'list_devices']
+__all__ = ['InputCapture', 'create_input_capture_instance', 'list_devices']

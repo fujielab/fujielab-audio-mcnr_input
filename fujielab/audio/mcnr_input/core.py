@@ -6,7 +6,7 @@ import platform
 from dataclasses import dataclass
 from typing import Optional, List, Union, Dict, Any
 from ._backend.data import AudioData
-from ._backend.input_capture import InputCapture
+from ._backend.input_capture import InputCapture, InputCaptureBase
 
 # Import OutputCapture class according to the platform
 if platform.system() == "Darwin":
@@ -172,6 +172,21 @@ class InputStream:
                 if hasattr(capture, 'get_current_time'):
                     return capture.get_current_time()
         return -1.0  # Return -1.0 if capture is not initialized
+
+    @property
+    def sample_rate(self):
+        """
+        Get the sample rate (alias for samplerate for soundfile compatibility)
+
+        サンプリングレートを取得 (soundfileとの互換性のためのsamplerateのエイリアス)
+
+        Returns:
+        --------
+        int
+            Sample rate in Hz
+            サンプリングレート（Hz）
+        """
+        return self.samplerate
 
     def start(self):
         """
@@ -534,7 +549,7 @@ if __name__ == "__main__":
             CaptureConfig(capture_type='Output', device_name=None, channels=2), # , offset=0.05),
         ],
         callback=callback,
-        debug=False # True  # デバッグメッセージを無効にする（必要に応じて True に変更）
+        debug=True  # デバッグメッセージを無効にする（必要に応じて True に変更）
     )
 
     try:

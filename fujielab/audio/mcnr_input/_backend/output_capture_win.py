@@ -361,7 +361,7 @@ class OutputCaptureWin(OutputCapture):
         try:
             # Retrieve data from the queue (wait up to 1 second)
             audio_data = self._audio_queue.get(block=True, timeout=1.0)
-            self._debug_print(f"Retrieved audio data: {audio_data.data.shape} at {audio_data.time}")
+            # self._debug_print(f"Retrieved audio data: {audio_data.data.shape} at {audio_data.time}")
             return audio_data
         except queue.Empty:
             raise RuntimeError("Timeout while waiting for audio data")

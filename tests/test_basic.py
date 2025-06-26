@@ -110,6 +110,33 @@ class TestInputStream:
         
         assert stream.callback is test_callback
 
+    def test_synchronize_with_chirp_mock(self, monkeypatch):
+        """Test synchronize_with_chirp with mocked helpers"""
+        stream = InputStream(debug=False)
+
+        # Simulate running state with two capture devices
+        stream.running = True
+        stream.capture_instances = [object(), object()]
+
+        # Mock internal helper methods
+        monkeypatch.setattr(
+            stream,
+            "_generate_chirp_signal",
+            lambda duration, f0, f1, amplitude: np.zeros(10),
+        )
+        monkeypatch.setattr(stream, "_play_chirp_signal", lambda signal: None)
+        monkeypatch.setattr(
+            stream,
+            "_detect_chirp_onsets",
+            lambda ref, f0, f1: [0.1, 0.15],
+        )
+
+        result = stream.synchronize_with_chirp()
+
+        assert result is True
+        assert stream.is_synchronized()
+        assert stream.get_sync_offsets() == pytest.approx([0.0, 0.05])
+
     @pytest.mark.skip(reason="Requires audio hardware and system setup")
     def test_input_stream_start_stop(self):
         """Test stream start/stop (skipped in CI)"""

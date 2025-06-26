@@ -49,6 +49,7 @@ class OutputCaptureMac(OutputCapture):
         self._audio_queue = queue.Queue(maxsize=20)
         self._callback_error = None
         self._callback_lock = threading.Lock()
+        self._time_offset = 0.0  # offset from system time to audio time
 
     @staticmethod
     def list_audio_devices(debug=False):
@@ -380,6 +381,7 @@ class OutputCaptureMac(OutputCapture):
                     )
                     self._capture_stream.start()
                     self._debug_print(f"Started recording from BlackHole 2ch (rate={self._sample_rate}Hz, channels={self._channels}, blocksize={self._blocksize}, using callback)")
+                    self._time_offset = time.time() - self._capture_stream.time  # Calculate time offset for accurate timestamps
 
                     # Wait for the recording stream to stabilize (a bit longer)
                     time.sleep(0.8)
@@ -437,6 +439,12 @@ class OutputCaptureMac(OutputCapture):
             import traceback
             traceback.print_exc()
             return False
+        finally:
+            # If the stream is not initialized, reset the state
+            if not self._stream_initialized:
+                self._capture_stream = None
+                self._debug_print("Stream initialization failed, resetting state")
+                self._stream_initialized = False
 
     @staticmethod
     def _check_required_tools():
@@ -573,7 +581,7 @@ class OutputCaptureMac(OutputCapture):
 
                     # Convert to AudioData object
                     try:
-                        timestamp = time_info.inputBufferAdcTime
+                        timestamp = self._time_offset + time_info.inputBufferAdcTime
                     except AttributeError:
                         timestamp = time.time()
 

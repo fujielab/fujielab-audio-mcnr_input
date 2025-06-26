@@ -8,6 +8,7 @@ import numpy as np
 import threading
 import time
 import queue
+import sounddevice as sd
 from .data import AudioData
 from .output_capture_base import OutputCapture
 
@@ -430,5 +431,44 @@ class OutputCaptureWin(OutputCapture):
         self._debug_print("Audio capture stopped")
 
 
+# Module level helper functions matching InputCapture pattern
+def create_output_capture_instance(
+    sample_rate: int = 44100,
+    channels: int = 2,
+    blocksize: int = 512,
+    debug: bool = False,
+) -> "OutputCaptureWin":
+    """Create a Windows OutputCapture instance"""
+    return OutputCaptureWin(
+        sample_rate=sample_rate,
+        channels=channels,
+        blocksize=blocksize,
+        debug=debug,
+    )
+
+
+def list_devices() -> bool:
+    """List available audio output devices on Windows"""
+    if hasattr(OutputCaptureWin, "list_audio_devices"):
+        return OutputCaptureWin.list_audio_devices()
+    print("\nAvailable audio output devices:")
+    try:
+        devices = sd.query_devices()
+        for i, dev in enumerate(devices):
+            if dev["max_output_channels"] > 0:
+                print(
+                    f"[{i}] {dev['name']} (Output Channels: {dev['max_output_channels']}, Host: {dev.get('hostapi')})"
+                )
+        print("\nTo capture output on Windows, use the output device labeled 'WASAPI'.")
+        return True
+    except Exception as e:
+        print(f"Error retrieving device list: {e}")
+        return False
+
+
 # Export the necessary class as a module
-__all__ = ["OutputCaptureWin"]
+__all__ = [
+    "OutputCaptureWin",
+    "create_output_capture_instance",
+    "list_devices",
+]

@@ -42,6 +42,44 @@ class OutputCaptureWin(OutputCapture):
         self._stream_initialized = False
         self._loopback_device = None
 
+    @staticmethod
+    def list_audio_devices(debug: bool = False) -> bool:
+        """List available speakers and loopback devices using soundcard."""
+
+        def _debug_print_local(msg: str) -> None:
+            if debug:
+                print(msg)
+
+        try:
+            speakers = sc.all_speakers()
+            loopbacks = [
+                mic
+                for mic in sc.all_microphones(include_loopback=True)
+                if getattr(mic, "isloopback", False)
+            ]
+
+            _debug_print_local("\nAvailable speakers:")
+            for i, spk in enumerate(speakers):
+                _debug_print_local(f"  {i}: {spk.name}")
+
+            _debug_print_local("\nAvailable loopback devices:")
+            if not loopbacks:
+                _debug_print_local("  (No loopback devices found)")
+            else:
+                for i, mic in enumerate(loopbacks):
+                    _debug_print_local(f"  {i}: {mic.name}")
+
+            try:
+                default_speaker = sc.default_speaker()
+                _debug_print_local(f"\nDefault speaker: {default_speaker.name}")
+            except Exception as e:
+                _debug_print_local(f"Could not determine default speaker: {e}")
+
+            return True
+        except Exception as e:
+            _debug_print_local(f"Failed to list devices: {e}")
+            return False
+
     def _find_loopback_device(self):
         """
         Find the best matching loopback device for the current default playback device
@@ -430,5 +468,30 @@ class OutputCaptureWin(OutputCapture):
         self._debug_print("Audio capture stopped")
 
 
+# Module level helper functions matching InputCapture pattern
+def create_output_capture_instance(
+    sample_rate: int = 44100,
+    channels: int = 2,
+    blocksize: int = 512,
+    debug: bool = False,
+) -> "OutputCaptureWin":
+    """Create a Windows OutputCapture instance"""
+    return OutputCaptureWin(
+        sample_rate=sample_rate,
+        channels=channels,
+        blocksize=blocksize,
+        debug=debug,
+    )
+
+
+def list_devices() -> bool:
+    """List available speakers and loopback devices on Windows"""
+    return OutputCaptureWin.list_audio_devices(debug=True)
+
+
 # Export the necessary class as a module
-__all__ = ["OutputCaptureWin"]
+__all__ = [
+    "OutputCaptureWin",
+    "create_output_capture_instance",
+    "list_devices",
+]

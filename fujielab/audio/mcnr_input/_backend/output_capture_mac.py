@@ -585,6 +585,32 @@ class OutputCaptureMac(OutputCapture):
                 self._debug_print("Stream initialization failed, resetting state")
                 self._stream_initialized = False
 
+
+# Module level helper functions matching InputCapture pattern
+def create_output_capture_instance(
+    sample_rate: int = 44100,
+    channels: int = 2,
+    blocksize: int = 1024,
+    debug: bool = False,
+) -> "OutputCaptureMac":
+    """Create a macOS OutputCapture instance"""
+    return OutputCaptureMac(
+        sample_rate=sample_rate,
+        channels=channels,
+        blocksize=blocksize,
+        debug=debug,
+    )
+
+
+def list_devices() -> bool:
+    """List available audio devices on macOS"""
+    return OutputCaptureMac.list_audio_devices()
+
+
+def check_fujielab_output_device(debug: bool = False) -> bool:
+    """Check fujielab-output composite device"""
+    return OutputCaptureMac.check_fujielab_output_device(debug=debug)
+
     @staticmethod
     def _check_required_tools():
         """
@@ -772,7 +798,13 @@ class OutputCaptureMac(OutputCapture):
 
 
 # Export necessary classes as a module
-__all__ = ["OutputCapture", "OutputCaptureMac"]
+__all__ = [
+    "OutputCapture",
+    "OutputCaptureMac",
+    "create_output_capture_instance",
+    "list_devices",
+    "check_fujielab_output_device",
+]
 
 
 if __name__ == "__main__":

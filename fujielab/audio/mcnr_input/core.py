@@ -10,11 +10,8 @@ from typing import Optional, List, Union, Dict, Any
 from ._backend.data import AudioData
 from ._backend.input_capture import InputCapture, InputCaptureBase
 
-# Import OutputCapture class according to the platform
-if platform.system() == "Darwin":
-    from ._backend.output_capture_mac import OutputCaptureMac as OutputCapture
-else:
-    from ._backend.output_capture_win import OutputCaptureWin as OutputCapture
+# Unified OutputCapture interface
+from ._backend.output_capture import OutputCapture
 
 
 @dataclass

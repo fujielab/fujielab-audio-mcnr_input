@@ -8,7 +8,6 @@ import numpy as np
 import threading
 import time
 import queue
-import sounddevice as sd
 from .data import AudioData
 from .output_capture_base import OutputCapture
 
@@ -42,6 +41,44 @@ class OutputCaptureWin(OutputCapture):
         self._stop_recording = threading.Event()
         self._stream_initialized = False
         self._loopback_device = None
+
+    @staticmethod
+    def list_audio_devices(debug: bool = False) -> bool:
+        """List available speakers and loopback devices using soundcard."""
+
+        def _debug_print_local(msg: str) -> None:
+            if debug:
+                print(msg)
+
+        try:
+            speakers = sc.all_speakers()
+            loopbacks = [
+                mic
+                for mic in sc.all_microphones(include_loopback=True)
+                if getattr(mic, "isloopback", False)
+            ]
+
+            _debug_print_local("\nAvailable speakers:")
+            for i, spk in enumerate(speakers):
+                _debug_print_local(f"  {i}: {spk.name}")
+
+            _debug_print_local("\nAvailable loopback devices:")
+            if not loopbacks:
+                _debug_print_local("  (No loopback devices found)")
+            else:
+                for i, mic in enumerate(loopbacks):
+                    _debug_print_local(f"  {i}: {mic.name}")
+
+            try:
+                default_speaker = sc.default_speaker()
+                _debug_print_local(f"\nDefault speaker: {default_speaker.name}")
+            except Exception as e:
+                _debug_print_local(f"Could not determine default speaker: {e}")
+
+            return True
+        except Exception as e:
+            _debug_print_local(f"Failed to list devices: {e}")
+            return False
 
     def _find_loopback_device(self):
         """
@@ -448,22 +485,8 @@ def create_output_capture_instance(
 
 
 def list_devices() -> bool:
-    """List available audio output devices on Windows"""
-    if hasattr(OutputCaptureWin, "list_audio_devices"):
-        return OutputCaptureWin.list_audio_devices()
-    print("\nAvailable audio output devices:")
-    try:
-        devices = sd.query_devices()
-        for i, dev in enumerate(devices):
-            if dev["max_output_channels"] > 0:
-                print(
-                    f"[{i}] {dev['name']} (Output Channels: {dev['max_output_channels']}, Host: {dev.get('hostapi')})"
-                )
-        print("\nTo capture output on Windows, use the output device labeled 'WASAPI'.")
-        return True
-    except Exception as e:
-        print(f"Error retrieving device list: {e}")
-        return False
+    """List available speakers and loopback devices on Windows"""
+    return OutputCaptureWin.list_audio_devices(debug=True)
 
 
 # Export the necessary class as a module

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fujielab-audio-mcnr_input"
-version = "0.1.0"
+version = "0.1.1"
 description = "Multi channel noise reduction based echo cancelling audio input stream"
 readme = "README.md"
 license = { text = "MIT" }
@@ -65,7 +65,7 @@ Documentation = "https://github.com/fujielab/fujielab-audio-mcnr_input#readme"
 Changelog = "https://github.com/fujielab/fujielab-audio-mcnr_input/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["fujielab", "fujielab.audio", "fujielab.audio.mcnr_input"]
+packages = ["fujielab", "fujielab.audio", "fujielab.audio.mcnr_input", "fujielab.audio.mcnr_input._backend"]
 
 [tool.setuptools.package-dir]
 "" = "."
